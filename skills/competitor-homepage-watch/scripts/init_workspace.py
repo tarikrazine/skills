@@ -39,10 +39,29 @@ Présenter ensuite le résumé du rapport en FRANÇAIS. Si rien n'a changé, le 
 simplement. Si une cible est bloquée ou en échec, le signaler dans la réponse.
 
 Autres raccourcis à comprendre :
-- « ouvre le rapport » → ouvrir le dernier `reports/<date>.html`
+- « ouvre le rapport » → ouvrir le dernier `reports/<date>.html` (`open`)
+- « ouvre le dossier » → ouvrir ce workspace dans le gestionnaire de fichiers
+  (`open .` sur macOS, `xdg-open .` sur Linux, `explorer .` sur Windows)
+- « ouvre la config » / « ajouter un concurrent » → ouvrir `watch.config.json`
+  dans un éditeur (`open -t`) et aider à remplir marque/pays/URL pendant que
+  le fichier est sous les yeux de l'utilisateur
+- « la clé firecrawl » / « où mettre la clé » → expliquer qu'elle vient de
+  firecrawl.dev (menu API Keys), puis proposer de l'ajouter au profil shell
+  (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) avec l'accord
+  explicite de l'utilisateur, jamais silencieusement ; vérifier ensuite avec
+  un fetch d'une seule cible
 - « le calendrier » → `calendar/calendar.md` (analyses depuis `calendar/calendar.json`)
-- « exporte vers Google Agenda » → indiquer `calendar/calendar.ics` (régénéré à
-  chaque archivage ; s'importe dans Google Calendar / Outlook)
+- « exporte vers Google Agenda » → révéler `calendar/calendar.ics` dans le
+  gestionnaire de fichiers (`open -R calendar/calendar.ics`) et guider
+  l'import pas à pas : calendar.google.com → Paramètres → Importer et
+  exporter → Importer, idéalement dans un agenda dédié « Veille concurrence »
+  (réimport = mise à jour, pas de doublons)
+
+Style d'accompagnement : l'utilisateur n'est pas forcément technique. Ne jamais
+se contenter de citer un chemin de fichier — proposer de l'ouvrir. Après
+l'initialisation, proposer spontanément dans l'ordre : (1) ouvrir le dossier,
+(2) ouvrir la config pour ajouter les enseignes à surveiller, (3) configurer la
+clé Firecrawl si elle manque, (4) lancer la première veille.
 """
 
 

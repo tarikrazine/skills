@@ -52,8 +52,20 @@ competitor-watch/
    `CLAUDE.md` into the workspace that maps everyday phrases ("lancer la
    veille", "run the daily watch") to the full daily procedure — so future
    sessions in that directory trigger the run without re-explaining anything.
-2. The starter config is a copy of `assets/watch.config.example.json`.
-3. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
+2. **Guide the user by the hand** — many users are non-technical, so don't just
+   name files, offer to open them (macOS `open`, Linux `xdg-open`, Windows
+   `explorer`):
+   - Offer to open the workspace folder in their file manager so they see
+     where everything lives: `open <workspace>`.
+   - Offer to open the config for editing (`open -t <workspace>/watch.config.json`
+     or their editor) and fill the brands/countries/URLs together while it's
+     open in front of them.
+   - If `FIRECRAWL_API_KEY` is missing, explain it comes from firecrawl.dev →
+     API Keys, then offer to add the export line to their shell profile for
+     them (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) — with their
+     confirmation, never silently. Verify afterwards with a one-target fetch.
+3. The starter config is a copy of `assets/watch.config.example.json`.
+4. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
 4. Check crawling capability: if the `FIRECRAWL_API_KEY` environment variable is set, fetches use Firecrawl (JavaScript rendering + full-page screenshots — the visuals that get archived). Without it, fetches fall back to plain HTTP text extraction: still functional, but no screenshots and JS-heavy pages may come back thin. Tell the user which mode is active and recommend a Firecrawl key for production use.
 5. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.
 
@@ -117,7 +129,7 @@ This produces `reports/<today>.html` — a self-contained page (KPIs, event card
 python3 <skill-dir>/scripts/update_calendar.py --workspace <workspace> --events <workspace>/events/<today>.json
 ```
 
-The script appends events to `calendar/calendar.json` (a `promo_end` closes the matching open operation), copies referenced screenshots into `calendar/visuals/`, and re-renders both `calendar/calendar.md` and `calendar/calendar.ics`. The `.ics` file imports into Google Calendar or Outlook — every competitor operation appears as an all-day event range, so the commercial plan can be read in a real calendar app; UIDs are stable, so re-importing updates instead of duplicating. Never edit `calendar.json` by hand — always go through the script so the lifecycle stays consistent.
+The script appends events to `calendar/calendar.json` (a `promo_end` closes the matching open operation), copies referenced screenshots into `calendar/visuals/`, and re-renders both `calendar/calendar.md` and `calendar/calendar.ics`. The `.ics` file imports into Google Calendar or Outlook — every competitor operation appears as an all-day event range, so the commercial plan can be read in a real calendar app; UIDs are stable, so re-importing updates instead of duplicating. When the user asks about Google Calendar, don't just point at the file: reveal it in their file manager (`open -R <workspace>/calendar/calendar.ics` on macOS) and walk them through the import (calendar.google.com → Settings → Import & export → Import, ideally into a dedicated "Veille concurrence" calendar). Never edit `calendar.json` by hand — always go through the script so the lifecycle stays consistent.
 
 ## Analysis mode
 
