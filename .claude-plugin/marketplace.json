@@ -1,0 +1,22 @@
+{
+  "name": "tarikrazine-skills",
+  "owner": {
+    "name": "Tarik Razine",
+    "email": "tarikrazine.com@gmail.com"
+  },
+  "metadata": {
+    "description": "Agent skills by Tarik Razine",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "competitor-homepage-watch",
+      "description": "Daily competitive intelligence from competitor homepages: crawl, diff vs yesterday, alert on new/ended promotions, archive into a commercial-plan calendar with screenshots",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/competitor-homepage-watch"
+      ]
+    }
+  ]
+}

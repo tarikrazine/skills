@@ -14,8 +14,15 @@ Reusable skills for AI coding agents (Claude Code, Cursor, Codex, and any
 ## Usage
 
 ```bash
-# install a skill into the current project
+# install a skill into the current project (any agentskills.io-compatible agent)
 npx skills add tarikrazine/skills --skill competitor-homepage-watch
+```
+
+Or as a Claude Code plugin marketplace:
+
+```
+/plugin marketplace add tarikrazine/skills
+/plugin install competitor-homepage-watch@tarikrazine-skills
 ```
 
 Skill scripts are Python 3 standard library only — no pip dependencies.
