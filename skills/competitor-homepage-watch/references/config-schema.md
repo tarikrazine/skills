@@ -15,7 +15,7 @@ are derived from it.
 | `targets[].url` | string | yes | The exact homepage URL to snapshot, with scheme. Prefer the final URL after redirects (avoid `http://` → `https://` hops and country-picker interstitials). |
 | `targets[].own_brand` | boolean | no | `true` for the user's own sites. Own-brand pages get the same treatment; the flag lets reports and analyses separate "us" vs "them". Default `false`. |
 | `firecrawl` | object | no | Extra options merged into every Firecrawl scrape request (e.g. `{"waitFor": 3000}`). Ignored by the HTTP fallback. |
-| `targets[].firecrawl` | object | no | Per-target Firecrawl options, merged over the global ones. The important one: `{"proxy": "stealth"}` for sites behind aggressive bot protection (DataDome and similar) — the default `"auto"` retries with stealth only when a block is detected, `"stealth"` forces it (higher credit cost, reliable). |
+| `targets[].firecrawl` | object | no | Per-target Firecrawl options, merged over the global ones. The important one: `{"proxy": "enhanced"}` for sites behind aggressive bot protection (DataDome and similar; Firecrawl formerly called this proxy tier "stealth"). Enhanced costs ~5 credits/scrape vs 1. The fetch script also auto-retries with enhanced when it detects a bot wall in the response, so this option mainly saves the wasted first attempt on known-protected sites. |
 
 ## Annotated example
 
@@ -27,7 +27,7 @@ are derived from it.
     { "brand": "BrandA",  "country": "FR", "url": "https://www.branda.example/",    "own_brand": false },
     { "brand": "BrandA",  "country": "ES", "url": "https://www.branda.example/es/", "own_brand": false },
     { "brand": "BrandB",  "country": "FR", "url": "https://www.brandb.example/",    "own_brand": false,
-      "firecrawl": { "proxy": "stealth" } },
+      "firecrawl": { "proxy": "enhanced" } },
     { "brand": "MyBrand", "country": "FR", "url": "https://www.mybrand.example/",   "own_brand": true }
   ]
 }

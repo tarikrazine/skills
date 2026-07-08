@@ -116,8 +116,9 @@ def fetch_via_firecrawl(url, api_key, timeout, extra_options=None):
     body = {
         "url": url,
         "formats": ["markdown", "html", {"type": "screenshot", "fullPage": True}],
-        # "auto" retries blocked requests through stealth proxies; heavily
-        # bot-protected retail sites (DataDome etc.) may need "stealth" outright.
+        # "auto" escalates basic → enhanced proxies on request FAILURE only.
+        # DataDome-class walls return HTTP 200 with a fake page, which auto
+        # cannot see — fetch_target handles that by retrying with "enhanced".
         "proxy": "auto",
     }
     body.update(extra_options or {})
@@ -185,6 +186,13 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
             options = dict(firecrawl_defaults or {})
             options.update(target.get("firecrawl") or {})
             content, raw_html, shot, status = fetch_via_firecrawl(target["url"], api_key, timeout, options)
+            # Bot walls (DataDome etc.) come back as HTTP 200 with a fake page,
+            # so Firecrawl's own auto-escalation never triggers. Detect the wall
+            # in the content and retry once with enhanced proxies (5 credits).
+            if looks_blocked(content) and options.get("proxy") not in ("enhanced", "stealth"):
+                options["proxy"] = "enhanced"
+                content, raw_html, shot, status = fetch_via_firecrawl(target["url"], api_key, timeout, options)
+                meta["engine"] = "firecrawl(enhanced-retry)"
         else:
             content, raw_html, shot, status = fetch_via_http(target["url"], timeout)
         meta["status"] = status
