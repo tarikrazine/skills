@@ -17,6 +17,7 @@ Python 3.8+, standard library only.
 """
 
 import argparse
+import datetime
 import json
 import re
 import shutil
@@ -145,6 +146,57 @@ def apply_event(calendar, event, workspace, visuals_dir):
     return "closed", target["id"]
 
 
+def ics_escape(text):
+    return (str(text or "").replace("\\", "\\\\").replace(";", "\\;")
+            .replace(",", "\\,").replace("\n", "\\n"))
+
+
+def render_ics(calendar):
+    """iCalendar export — import the file into Google Calendar/Outlook to see
+    every competitor operation as an all-day event range. UIDs are stable per
+    operation id, so re-importing updates events instead of duplicating them
+    in clients that honor UID."""
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//competitor-homepage-watch//EN",
+        "CALSCALE:GREGORIAN",
+        "X-WR-CALNAME:Veille concurrentielle",
+    ]
+    for op in calendar["operations"]:
+        if op.get("type") != "operation":
+            continue
+        start = op["first_seen"].replace("-", "")
+        end_date = op.get("ended_on") or op.get("announced_end") or op.get("last_seen")
+        # DTEND is exclusive for all-day events: add one day
+        y, m, d = (int(x) for x in end_date.split("-"))
+        end = (datetime.date(y, m, d) + datetime.timedelta(days=1)).strftime("%Y%m%d")
+        if end <= start:
+            end = (datetime.date(*[int(x) for x in op["first_seen"].split("-")])
+                   + datetime.timedelta(days=1)).strftime("%Y%m%d")
+        title = f"[{op['brand']} {op['country']}] {op['title']}"
+        if op.get("discount"):
+            title += f" ({op['discount']})"
+        desc = op.get("summary", "")
+        if op.get("evidence"):
+            desc += f"\nSource: « {op['evidence']} »"
+        if op.get("status") == "ongoing":
+            desc += "\nStatut: en cours (fin non observée)"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:op-{op['id']}@competitor-homepage-watch",
+            f"DTSTAMP:{start}T000000Z",
+            f"DTSTART;VALUE=DATE:{start}",
+            f"DTEND;VALUE=DATE:{end}",
+            f"SUMMARY:{ics_escape(title)}",
+            f"DESCRIPTION:{ics_escape(desc)}",
+            "TRANSP:TRANSPARENT",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
 def render_markdown(calendar):
     lines = ["# Commercial calendar", ""]
     by_key = defaultdict(list)
@@ -221,6 +273,7 @@ def main():
 
     calendar_path.write_text(json.dumps(calendar, indent=2, ensure_ascii=False), encoding="utf-8")
     (calendar_dir / "calendar.md").write_text(render_markdown(calendar), encoding="utf-8")
+    (calendar_dir / "calendar.ics").write_text(render_ics(calendar), encoding="utf-8")
     ongoing = sum(1 for op in calendar["operations"] if op["status"] == "ongoing")
     print(f"calendar: {len(calendar['operations'])} operations total, {ongoing} ongoing")
     return 0

@@ -1,6 +1,6 @@
 ---
 name: competitor-homepage-watch
-description: Monitors competitor homepages to track their commercial plans. Runs a daily crawl of configured competitor and own-brand homepages across countries, diffs each page against the previous snapshot, alerts on new and ended promotions or commercial operations, and archives every event into a commercial-plan calendar with screenshots for year-over-year analysis. Use whenever the user mentions competitive intelligence, competitor monitoring, promo or campaign tracking, homepage change detection, reconstructing a competitor's commercial calendar, or comparing this year's trade plan against last year's — even if they don't say "watch" or "crawl" explicitly. Don't use for one-off website scraping, SEO audits, full-site crawls, or price-per-product comparison.
+description: Monitors competitor homepages to track their commercial plans. Runs a daily crawl of configured competitor and own-brand homepages across countries, diffs each page against the previous snapshot, alerts on new and ended promotions or commercial operations, and archives every event into a commercial-plan calendar with screenshots and Google Calendar (ICS) export for year-over-year analysis. Use whenever the user mentions competitive intelligence, competitor monitoring, promo or campaign tracking, homepage change detection, reconstructing a competitor's commercial calendar, or comparing this year's trade plan against last year's — even without the words "watch" or "crawl", including French phrasings like "lancer la veille", "veille concurrentielle" or "veille du jour". Don't use for one-off website scraping, SEO audits, full-site crawls, or price-per-product comparison.
 ---
 
 # Competitor Homepage Watch
@@ -13,11 +13,13 @@ Scripts handle the deterministic work; the agent handles the judgment:
 
 | Step | Who | Tool |
 |------|-----|------|
+| Bootstrap a new workspace | script | `scripts/init_workspace.py` **[bootstrap]** |
 | Fetch homepages → snapshots | script | `scripts/fetch_homepage.py` **[mutating]** |
 | Diff today vs previous snapshot | script | `scripts/diff_snapshots.py` **[read-only]** |
 | Classify changes (promo start/end/noise) | **agent** | `references/promo-detection.md` |
 | Write the daily alert report | **agent** | `assets/report-template.md` |
-| Archive events into the calendar | script | `scripts/update_calendar.py` **[mutating]** |
+| Render the reader-friendly HTML report | script | `scripts/render_report.py` **[mutating]** |
+| Archive events into the calendar (+ ICS export) | script | `scripts/update_calendar.py` **[mutating]** |
 | Answer analysis questions (plan N-1, comparisons) | **agent** | `references/calendar-format.md` |
 
 All script paths below are relative to this skill's directory. Resolve `<skill-dir>` to the directory containing this SKILL.md before running commands. Scripts are Python 3 standard library only — no pip installs needed.
@@ -42,8 +44,15 @@ competitor-watch/
 
 ## First-time setup
 
-1. Ask the user where the workspace should live, then create it.
-2. Copy `assets/watch.config.example.json` into the workspace as `watch.config.json`.
+1. Ask the user where the workspace should live, then bootstrap it in one command:
+   ```bash
+   python3 <skill-dir>/scripts/init_workspace.py --dir <workspace>
+   ```
+   This creates the directory tree, installs a starter config, and writes a
+   `CLAUDE.md` into the workspace that maps everyday phrases ("lancer la
+   veille", "run the daily watch") to the full daily procedure — so future
+   sessions in that directory trigger the run without re-explaining anything.
+2. The starter config is a copy of `assets/watch.config.example.json`.
 3. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
 4. Check crawling capability: if the `FIRECRAWL_API_KEY` environment variable is set, fetches use Firecrawl (JavaScript rendering + full-page screenshots — the visuals that get archived). Without it, fetches fall back to plain HTTP text extraction: still functional, but no screenshots and JS-heavy pages may come back thin. Tell the user which mode is active and recommend a Firecrawl key for production use.
 5. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.
@@ -92,7 +101,15 @@ Read the diff JSON. For each changed target, decide what each added/removed/chan
 
 ### 4. Write the daily alert report
 
-Fill `assets/report-template.md` into `reports/<today>.md`: new operations first, then ended ones, then modifications, grouped by brand and country, each with its evidence quote and screenshot reference. Present the report content in the conversation — this IS the alert. If the user has an alerting channel (email, Slack, n8n webhook), offer to send it there; see `references/scheduling.md` for wiring options.
+Fill `assets/report-template.md` into `reports/<today>.md`: new operations first, then ended ones, then modifications, grouped by brand and country, each with its evidence quote and screenshot reference. Present the report content in the conversation — this IS the alert.
+
+Then render the reader-friendly version for non-technical stakeholders:
+
+```bash
+python3 <skill-dir>/scripts/render_report.py --workspace <workspace> --date <today>
+```
+
+This produces `reports/<today>.html` — a self-contained page (KPIs, event cards with evidence and screenshots, per-brand activity chart) that opens with a double click and prints cleanly to PDF. Offer to open it (`open reports/<today>.html` on macOS). If the user has an alerting channel (email, Slack, n8n webhook), offer to send the report there; see `references/scheduling.md` for wiring options.
 
 ### 5. Archive into the commercial calendar
 
@@ -100,7 +117,7 @@ Fill `assets/report-template.md` into `reports/<today>.md`: new operations first
 python3 <skill-dir>/scripts/update_calendar.py --workspace <workspace> --events <workspace>/events/<today>.json
 ```
 
-The script appends events to `calendar/calendar.json` (a `promo_end` closes the matching open operation), copies referenced screenshots into `calendar/visuals/`, and re-renders `calendar/calendar.md`. Never edit `calendar.json` by hand — always go through the script so the lifecycle stays consistent.
+The script appends events to `calendar/calendar.json` (a `promo_end` closes the matching open operation), copies referenced screenshots into `calendar/visuals/`, and re-renders both `calendar/calendar.md` and `calendar/calendar.ics`. The `.ics` file imports into Google Calendar or Outlook — every competitor operation appears as an all-day event range, so the commercial plan can be read in a real calendar app; UIDs are stable, so re-importing updates instead of duplicating. Never edit `calendar.json` by hand — always go through the script so the lifecycle stays consistent.
 
 ## Analysis mode
 
