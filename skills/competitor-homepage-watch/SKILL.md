@@ -32,6 +32,8 @@ dashboard is generated on demand (or offered at the end of a run).
 
 All script paths below are relative to this skill's directory. Resolve `<skill-dir>` to the directory containing this SKILL.md before running commands. Scripts are Python 3 standard library only — no pip installs needed.
 
+**Visual consistency (read before any HTML output).** The reports and dashboard are rendered by scripts with fixed styling, so they look identical across model versions. If you ever modify a rendering script, or generate any ad-hoc visual (e.g. a custom comparison view in analysis mode), follow `references/design-system.md` and reuse its tokens — do not invent a new palette or layout. Every visual this skill emits must read as another page of the same product, regardless of which model is running.
+
 ## Workspace layout
 
 All data lives in a workspace directory chosen by the user (default `./competitor-watch`):
@@ -156,7 +158,7 @@ to offer at the end of a daily run ("veux-tu la vue d'ensemble du mois ?").
 
 ## Analysis mode
 
-When the user asks questions like "what did competitor X run last November", "reconstruct Y's commercial plan for 2025", or "what was everyone doing at this time last year" — read `calendar/calendar.json` and answer from it. Read `references/calendar-format.md` for the schema and ready-made analysis recipes (per-brand timeline, month-by-month cross-brand grid, N-1 comparison for next year's trade planning).
+When the user asks questions like "what did competitor X run last November", "reconstruct Y's commercial plan for 2025", or "what was everyone doing at this time last year" — read `calendar/calendar.json` and answer from it. If the answer is best delivered as a visual (a custom table or chart the two scripts don't already produce), generate self-contained HTML that follows `references/design-system.md` so it matches the report and dashboard. Read `references/calendar-format.md` for the schema and ready-made analysis recipes (per-brand timeline, month-by-month cross-brand grid, N-1 comparison for next year's trade planning).
 
 ## Automating the daily run
 
