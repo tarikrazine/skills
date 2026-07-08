@@ -19,12 +19,16 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-# (label, ink text, tint background, stripe) — refined semantic signals
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import i18n  # noqa: E402
+
+# event_type -> (ink text, tint background, stripe, i18n tag key). Colors are
+# fixed by the design system; the label text comes from i18n per language.
 TYPE_META = {
-    "promo_start": ("Nouvelle opération", "#1f7a5a", "#e8f2ec", "#1f7a5a"),
-    "promo_end": ("Opération terminée", "#a8452f", "#f6eae5", "#a8452f"),
-    "promo_update": ("Opération modifiée", "#9a6a12", "#f5eddb", "#9a6a12"),
-    "other_change": ("Changement notable", "#3d5350", "#eaeeec", "#3d5350"),
+    "promo_start": ("#1f7a5a", "#e8f2ec", "#1f7a5a", "tag_new"),
+    "promo_end": ("#a8452f", "#f6eae5", "#a8452f", "tag_ended"),
+    "promo_update": ("#9a6a12", "#f5eddb", "#9a6a12", "tag_modified"),
+    "other_change": ("#3d5350", "#eaeeec", "#3d5350", "tag_other"),
 }
 
 CSS = """
@@ -104,11 +108,12 @@ def esc(s):
     return html.escape(str(s or ""))
 
 
-def event_card(ev, workspace, reports_dir):
-    label, ink, bg, stripe = TYPE_META.get(ev.get("event_type"), TYPE_META["other_change"])
+def event_card(ev, workspace, reports_dir, S):
+    ink, bg, stripe, tag_key = TYPE_META.get(ev.get("event_type"), TYPE_META["other_change"])
+    label = S[tag_key]
     disc = f' &middot; <span class="disc" style="color:{ink}">{esc(ev["discount"])}</span>' if ev.get("discount") else ""
     end = (ev.get("dates_seen") or {}).get("announced_end")
-    end_html = f'<div class="brand">Fin annoncée · {esc(end)}</div>' if end else ""
+    end_html = f'<div class="brand">{esc(S["announced_end"].format(end=end))}</div>' if end else ""
     quote = f"<blockquote>« {esc(ev['evidence'])} »</blockquote>" if ev.get("evidence") else ""
     img = ""
     shot = ev.get("screenshot")
@@ -129,13 +134,13 @@ def event_card(ev, workspace, reports_dir):
 </div>"""
 
 
-def brand_chart(calendar):
+def brand_chart(calendar, S):
     counts = Counter()
     for op in calendar.get("operations", []):
         if op.get("type") == "operation" and op.get("status") == "ongoing":
             counts[f"{op['brand']} {op['country']}"] += 1
     if not counts:
-        return '<p class="empty">Aucune opération en cours dans le calendrier.</p>'
+        return f'<p class="empty">{esc(S["chart_empty"])}</p>'
     top = counts.most_common(10)
     peak = max(c for _, c in top)
     rows, y = [], 0
@@ -170,6 +175,11 @@ def main():
     date = events_path.stem
     events = json.loads(events_path.read_text(encoding="utf-8"))
 
+    config_path = workspace / "watch.config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    lang = i18n.resolve_lang(config)
+    S = i18n.strings(lang)
+
     calendar_path = workspace / "calendar" / "calendar.json"
     calendar = json.loads(calendar_path.read_text(encoding="utf-8")) if calendar_path.exists() else {"operations": []}
     diff_path = workspace / "diffs" / f"{date}.json"
@@ -186,44 +196,42 @@ def main():
     if diff:
         for t in diff.get("targets", []):
             if t.get("status") == "fetch_failed":
-                issues.append(f"{esc(t['slug'])} : capture en échec ({esc(t.get('error', ''))})")
-    baseline = f" · base {esc(diff['baseline'])}" if diff else ""
+                issues.append(esc(S["fetch_failed"].format(slug=t["slug"], err=t.get("error", ""))))
+    baseline = S["baseline"].format(b=esc(diff["baseline"])) if diff else ""
 
     sections = []
-    for key, title in [("promo_start", "Nouvelles opérations"),
-                       ("promo_end", "Opérations terminées"),
-                       ("promo_update", "Opérations modifiées"),
-                       ("other_change", "Autres changements")]:
+    for key, skey in [("promo_start", "sec_new"), ("promo_end", "sec_ended"),
+                      ("promo_update", "sec_modified"), ("other_change", "sec_other")]:
         if by_type[key]:
-            cards = "".join(event_card(e, workspace, reports_dir) for e in by_type[key])
-            sections.append(f"<h2>{title}</h2>{cards}")
+            cards = "".join(event_card(e, workspace, reports_dir, S) for e in by_type[key])
+            sections.append(f"<h2>{esc(S[skey])}</h2>{cards}")
     if not sections:
-        sections.append('<h2>Résultat</h2><p class="empty">Aucun changement commercial détecté aujourd\'hui.</p>')
+        sections.append(f'<h2>{esc(S["sec_result"])}</h2><p class="empty">{esc(S["no_change"])}</p>')
     issues_html = ""
     if issues:
-        issues_html = '<h2>Problèmes de surveillance</h2><div class="issues">' + "<br>".join(issues) + "</div>"
+        issues_html = f'<h2>{esc(S["sec_issues"])}</h2><div class="issues">' + "<br>".join(issues) + "</div>"
 
     page = f"""<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8">
+<html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Veille concurrentielle — {esc(date)}</title><style>{CSS}</style></head>
+<title>{esc(S['report_eyebrow'])} — {esc(date)}</title><style>{CSS}</style></head>
 <body><div class="wrap">
 <div class="masthead">
-<div class="eyebrow">Veille concurrentielle · Rapport quotidien</div>
-<h1>Ce qui a bougé le {esc(date)}</h1>
-<div class="meta">Comparaison jour à jour{baseline}</div>
+<div class="eyebrow">{esc(S['report_eyebrow'])}</div>
+<h1>{esc(S['report_title'].format(date=date))}</h1>
+<div class="meta">{esc(S['report_meta'].format(baseline=baseline))}</div>
 </div>
 <div class="kpis">
-<div class="kpi hot"><b>{len(by_type['promo_start'])}</b><span>Nouvelles</span></div>
-<div class="kpi"><b>{len(by_type['promo_end'])}</b><span>Terminées</span></div>
-<div class="kpi"><b>{len(by_type['promo_update'])}</b><span>Modifiées</span></div>
-<div class="kpi"><b>{ongoing}</b><span>En cours · marché</span></div>
+<div class="kpi hot"><b>{len(by_type['promo_start'])}</b><span>{esc(S['kpi_new'])}</span></div>
+<div class="kpi"><b>{len(by_type['promo_end'])}</b><span>{esc(S['kpi_ended'])}</span></div>
+<div class="kpi"><b>{len(by_type['promo_update'])}</b><span>{esc(S['kpi_modified'])}</span></div>
+<div class="kpi"><b>{ongoing}</b><span>{esc(S['kpi_market'])}</span></div>
 </div>
 {''.join(sections)}
 {issues_html}
-<h2>Opérations en cours par enseigne</h2>
-<div class="panel"><div class="cap">Nombre d'opérations actives</div>{brand_chart(calendar)}</div>
-<footer>competitor-homepage-watch · dates observées lors des passages quotidiens</footer>
+<h2>{esc(S['chart_title'])}</h2>
+<div class="panel"><div class="cap">{esc(S['chart_cap'])}</div>{brand_chart(calendar, S)}</div>
+<footer>{esc(S['footer'])}</footer>
 </div></body></html>"""
 
     out = reports_dir / f"{date}.html"

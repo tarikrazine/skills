@@ -63,11 +63,17 @@ Autres raccourcis à comprendre :
   exporter → Importer, idéalement dans un agenda dédié « Veille concurrence »
   (réimport = mise à jour, pas de doublons)
 
+Langue des rapports : le champ `"language"` de watch.config.json fixe la langue
+du rapport quotidien ET du tableau de bord (`fr`, `en`, `es`). C'est la langue
+des rapports de l'utilisateur, indépendante de la langue des sites surveillés.
+Le demander au setup si ce n'est pas déjà réglé.
+
 Style d'accompagnement : l'utilisateur n'est pas forcément technique. Ne jamais
 se contenter de citer un chemin de fichier — proposer de l'ouvrir. Après
 l'initialisation, proposer spontanément dans l'ordre : (1) ouvrir le dossier,
-(2) ouvrir la config pour ajouter les enseignes à surveiller, (3) configurer la
-clé Firecrawl si elle manque, (4) lancer la première veille.
+(2) ouvrir la config pour ajouter les enseignes à surveiller + choisir la langue
+des rapports, (3) configurer la clé Firecrawl si elle manque, (4) lancer la
+première veille.
 """
 
 

@@ -8,7 +8,8 @@ are derived from it.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `workspace` | string | no | Data directory. Relative paths resolve against the config file's directory. Default: the config file's directory. |
-| `language_hint` | string | no | Primary language of the monitored sites (e.g. `"fr"`). Helps the agent read promo wording; has no effect on scripts. |
+| `language` | string | no | **Output language of the HTML report and dashboard**: `"fr"`, `"en"`, or `"es"`. Falls back to `language_hint`, then French. Ask the user for this at setup — it's the language their reports are written in, independent of the languages of the sites they watch. |
+| `language_hint` | string | no | Primary language of the monitored sites (e.g. `"fr"`). Helps the agent read promo wording; used as the report-language fallback when `language` is unset. |
 | `targets` | array | yes | One entry per brand × country homepage. |
 | `targets[].brand` | string | yes | Brand name as it should appear in reports and the calendar (e.g. `"BrandA"`). |
 | `targets[].country` | string | yes | ISO-ish country code (`"FR"`, `"DE"`, `"ES"`…). Brand+country must be unique — the pair becomes the target slug. |

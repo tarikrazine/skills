@@ -104,7 +104,9 @@ PDF from the browser, so they must print as cleanly as they display.
    figures/dates). A new view must read as another page of the same briefing.
 4. Spend boldness once — the amber signal and the serif titles carry the
    personality; keep everything around them quiet.
-5. Client-facing copy in French; lead with the outcome.
+5. Client-facing copy follows the config `language` (`fr`/`en`/`es`) — the
+   scripts pull every label from `scripts/i18n.py`, never hardcode UI text.
+   Lead with the outcome.
 
 ## Note on theming
 

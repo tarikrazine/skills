@@ -1,5 +1,6 @@
 {
   "workspace": ".",
+  "language": "fr",
   "language_hint": "fr",
   "targets": [
     { "brand": "BrandA",  "country": "FR", "url": "https://www.branda.example/",    "own_brand": false },

@@ -74,7 +74,12 @@ competitor-watch/
      API Keys, then offer to add the export line to their shell profile for
      them (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) — with their
      confirmation, never silently. Verify afterwards with a one-target fetch.
-3. The starter config is a copy of `assets/watch.config.example.json`.
+3. The starter config is a copy of `assets/watch.config.example.json`. Ask the
+   user which **output language** the reports and dashboard should be written in
+   — `fr`, `en`, or `es` — and set `"language"` in the config. This is the
+   language of *their* reports, independent of the languages of the competitor
+   sites they watch; a French team can watch German and Spanish homepages and
+   still get French reports. See `references/config-schema.md`.
 4. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
 4. Check crawling capability: if the `FIRECRAWL_API_KEY` environment variable is set, fetches use Firecrawl (JavaScript rendering + full-page screenshots — the visuals that get archived). Without it, fetches fall back to plain HTTP text extraction: still functional, but no screenshots and JS-heavy pages may come back thin. Tell the user which mode is active and recommend a Firecrawl key for production use.
 5. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.

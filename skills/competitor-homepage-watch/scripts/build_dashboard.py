@@ -24,8 +24,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-MONTHS_FR = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
-             "août", "septembre", "octobre", "novembre", "décembre"]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import i18n  # noqa: E402
+
 # Brand series — refined, on-system, cycled deterministically by sorted brand+country
 PALETTE = ["#0f5f5c", "#1f7a5a", "#a8452f", "#7a4fa0", "#2c6b8a", "#9a6a12",
            "#556b2f", "#b0567a"]
@@ -58,6 +59,12 @@ def main():
         print(f"ERROR: no calendar at {cal_path}", file=sys.stderr)
         return 1
     calendar = json.loads(cal_path.read_text(encoding="utf-8"))
+    config_path = ws / "watch.config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    lang = i18n.resolve_lang(config)
+    S = i18n.strings(lang)
+    MONTHS = i18n.months(lang)
+
     ops = [o for o in calendar.get("operations", []) if o.get("type") == "operation"]
     if not ops:
         print("ERROR: no operations in the calendar yet", file=sys.stderr)
@@ -68,13 +75,13 @@ def main():
     if args.days:
         win_end = d(latest)
         win_start = win_end - datetime.timedelta(days=args.days - 1)
-        title = f"{args.days} derniers jours"
+        title = S["dash_days"].format(n=args.days)
     else:
         month = args.month or latest[:7]
         y, m = int(month[:4]), int(month[5:7])
         win_start = datetime.date(y, m, 1)
         win_end = datetime.date(y + (m == 12), (m % 12) + 1, 1) - datetime.timedelta(days=1)
-        title = f"{MONTHS_FR[m]} {y}"
+        title = f"{MONTHS[m]} {y}"
     span_days = (win_end - win_start).days + 1
 
     # Operations overlapping the window
@@ -143,20 +150,27 @@ def main():
                     svg.append(f'<text x="{x+w-8}" y="{y+ROW_H//2+4}" font-size="10.5" fill="#ffffff" font-weight="700" text-anchor="end" font-family="{MONO}">{esc(o["discount"])}</text>')
             y += ROW_H
     svg.append("</svg>")
-    gantt = "".join(svg) if active else '<p class="empty">Aucune opération dans cette fenêtre.</p>'
+    gantt = "".join(svg) if active else f'<p class="empty">{esc(S["window_empty"])}</p>'
 
     # Per-brand breakdown table
+    def end_cell(o):
+        if o.get("ended_on"):
+            return esc(o["ended_on"])
+        if o.get("announced_end"):
+            return "→ " + esc(o["announced_end"])
+        return esc(S["ongoing"])
+
     brand_rows = []
     for key in sorted(rows):
         items = sorted(rows[key], key=lambda t: t[1])
         cells = "".join(
             f'<tr><td>{esc(o["title"])}</td><td>{esc(o.get("discount") or "—")}</td>'
-            f'<td>{esc(o["first_seen"])}</td>'
-            f'<td>{esc(o.get("ended_on") or ("→ " + o.get("announced_end")) if o.get("announced_end") and not o.get("ended_on") else (o.get("ended_on") or "en cours"))}</td></tr>'
+            f'<td>{esc(o["first_seen"])}</td><td>{end_cell(o)}</td></tr>'
             for o, _, _ in items)
         brand_rows.append(
             f'<h3><span class="chip" style="background:{brand_color[key]}"></span>{esc(key[0])} · {esc(key[1])}</h3>'
-            f'<table><thead><tr><th>Opération</th><th>Remise</th><th>Début</th><th>Fin</th></tr></thead><tbody>{cells}</tbody></table>')
+            f'<table><thead><tr><th>{esc(S["th_op"])}</th><th>{esc(S["th_disc"])}</th>'
+            f'<th>{esc(S["th_start"])}</th><th>{esc(S["th_end"])}</th></tr></thead><tbody>{cells}</tbody></table>')
 
     css = """
 :root {
@@ -210,26 +224,26 @@ footer { font-family:var(--mono); text-align:center; color:var(--faint);
 """
 
     page = f"""<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8">
+<html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tableau de bord — {esc(title)}</title><style>{css}</style></head>
+<title>{esc(S['dash_eyebrow'])} — {esc(title)}</title><style>{css}</style></head>
 <body><div class="wrap">
 <div class="masthead">
-<div class="eyebrow">Veille concurrentielle · Plan commercial du marché</div>
+<div class="eyebrow">{esc(S['dash_eyebrow'])}</div>
 <h1>{esc(title)}</h1>
-<div class="meta">Vue cumulée · {esc(win_start.isoformat())} → {esc(win_end.isoformat())} · {len(active)} opérations</div>
+<div class="meta">{esc(S['dash_meta'].format(start=win_start.isoformat(), end=win_end.isoformat(), n=len(active)))}</div>
 </div>
 <div class="kpis">
-<div class="kpi"><b>{started}</b><span>Démarrées</span></div>
-<div class="kpi"><b>{ended}</b><span>Terminées</span></div>
-<div class="kpi"><b>{ongoing}</b><span>En cours</span></div>
-<div class="kpi"><b>{len(rows)}</b><span>Enseignes actives</span></div>
+<div class="kpi"><b>{started}</b><span>{esc(S['dk_started'])}</span></div>
+<div class="kpi"><b>{ended}</b><span>{esc(S['dk_ended'])}</span></div>
+<div class="kpi"><b>{ongoing}</b><span>{esc(S['dk_ongoing'])}</span></div>
+<div class="kpi"><b>{len(rows)}</b><span>{esc(S['dk_brands'])}</span></div>
 </div>
-<h2>Frise des opérations</h2>
+<h2>{esc(S['dash_sec_gantt'])}</h2>
 <div class="panel">{gantt}</div>
-<h2>Détail par enseigne</h2>
-<div class="panel">{''.join(brand_rows) if brand_rows else '<p class="empty">Aucune opération.</p>'}</div>
-<footer>competitor-homepage-watch · vue cumulée régénérée à la demande · dates observées lors des passages quotidiens</footer>
+<h2>{esc(S['dash_sec_detail'])}</h2>
+<div class="panel">{''.join(brand_rows) if brand_rows else f'<p class="empty">{esc(S["dash_empty"])}</p>'}</div>
+<footer>{esc(S['dash_footer'])}</footer>
 </div></body></html>"""
 
     out = ws / "dashboard.html"
