@@ -3,9 +3,10 @@
 
 Builds <workspace>/reports/<date>.html from events/<date>.json, diffs/<date>.json
 (when present) and calendar/calendar.json. The page is designed for non-technical
-readers: KPI header, per-brand activity chart (inline SVG), one card per event
-with the evidence quote and the screenshot when available. No external assets —
-it opens offline with a double click and prints cleanly to PDF from the browser.
+readers: an intelligence-briefing masthead, stat tiles, one card per event with
+the evidence pull-quote and screenshot, and a per-brand activity chart (inline
+SVG). No external assets — it opens offline with a double click and prints
+cleanly to PDF from the browser. Visual system: references/design-system.md.
 
 Exit codes: 0 = report written, 1 = bad usage/missing events file.
 Python 3.8+, standard library only.
@@ -18,43 +19,84 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# (label, ink text, tint background, stripe) — refined semantic signals
 TYPE_META = {
-    "promo_start": ("Nouvelle opération", "#0e7a4a", "#e6f5ee"),
-    "promo_end": ("Opération terminée", "#a33b3b", "#faecec"),
-    "promo_update": ("Opération modifiée", "#8a6d1a", "#faf4e0"),
-    "other_change": ("Changement notable", "#41586e", "#eef2f6"),
+    "promo_start": ("Nouvelle opération", "#1f7a5a", "#e8f2ec", "#1f7a5a"),
+    "promo_end": ("Opération terminée", "#a8452f", "#f6eae5", "#a8452f"),
+    "promo_update": ("Opération modifiée", "#9a6a12", "#f5eddb", "#9a6a12"),
+    "other_change": ("Changement notable", "#3d5350", "#eaeeec", "#3d5350"),
 }
 
 CSS = """
-* { box-sizing: border-box; margin: 0; }
-body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f2f4f7; color: #1f2733;
-       line-height: 1.5; padding: 28px 16px; }
-.wrap { max-width: 860px; margin: 0 auto; }
-header { background: #0f2a43; color: #fff; border-radius: 10px; padding: 22px 26px; }
-header h1 { font-size: 21px; font-weight: 600; }
-header p { color: #b9c8d8; font-size: 13px; margin-top: 4px; }
-.kpis { display: flex; gap: 12px; margin: 16px 0 22px; flex-wrap: wrap; }
-.kpi { flex: 1 1 120px; background: #fff; border-radius: 10px; padding: 14px 16px;
-       border: 1px solid #e3e8ee; }
-.kpi b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
-.kpi span { font-size: 12px; color: #5b6b7c; }
-h2 { font-size: 15px; color: #0f2a43; margin: 24px 0 10px; }
-.card { background: #fff; border: 1px solid #e3e8ee; border-radius: 10px;
-        padding: 16px 18px; margin-bottom: 12px; page-break-inside: avoid; }
-.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px;
-       border-radius: 99px; margin-bottom: 8px; }
-.card h3 { font-size: 15px; margin-bottom: 4px; }
-.card .brand { font-size: 12px; color: #5b6b7c; margin-bottom: 8px; }
-.card .disc { font-weight: 700; color: #0e7a4a; }
-blockquote { border-left: 3px solid #c9d2dc; padding: 6px 12px; margin: 10px 0;
-             color: #44546a; font-size: 13px; background: #f7f9fb; }
-.card img { max-width: 100%; border: 1px solid #e3e8ee; border-radius: 6px; margin-top: 10px; }
-.chart { background: #fff; border: 1px solid #e3e8ee; border-radius: 10px; padding: 16px 18px; }
-.issues { background: #fff8e6; border: 1px solid #e8d9a0; border-radius: 10px;
-          padding: 12px 16px; font-size: 13px; color: #6b5a1a; }
-.empty { color: #5b6b7c; font-size: 13px; padding: 8px 2px; }
-footer { text-align: center; color: #8b98a7; font-size: 11px; margin-top: 26px; }
-@media print { body { background: #fff; padding: 0; } .card, .chart { border-color: #ccc; } }
+:root {
+  --paper:#f6f7f5; --card:#ffffff; --ink:#12211f; --petrol:#0f5f5c;
+  --amber:#c8792b; --muted:#5c6b67; --faint:#93a09b; --line:#dbe0dd;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+}
+* { box-sizing:border-box; margin:0; }
+body { font-family:var(--sans); background:var(--paper); color:var(--ink);
+  line-height:1.55; padding:40px 18px; -webkit-font-smoothing:antialiased; }
+.wrap { max-width:760px; margin:0 auto; }
+
+.masthead { border-top:3px solid var(--ink); padding-top:14px; margin-bottom:26px; }
+.eyebrow { font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--petrol); font-weight:600; }
+.masthead h1 { font-family:var(--serif); font-size:33px; line-height:1.08;
+  font-weight:600; letter-spacing:-.01em; margin:6px 0 8px; text-wrap:balance; }
+.masthead .meta { font-family:var(--mono); font-size:12px; color:var(--muted);
+  border-top:1px solid var(--line); padding-top:8px; }
+
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+  background:var(--line); border:1px solid var(--line); border-radius:12px;
+  overflow:hidden; margin:0 0 30px; }
+.kpi { background:var(--card); padding:16px 16px 14px; }
+.kpi b { display:block; font-family:var(--mono); font-size:30px; font-weight:600;
+  line-height:1; font-variant-numeric:tabular-nums; }
+.kpi.hot b { color:var(--amber); }
+.kpi span { display:block; font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); margin-top:7px; }
+
+h2 { font-family:var(--sans); font-size:12px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); font-weight:600;
+  margin:30px 0 12px; padding-bottom:7px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:8px; }
+h2::before { content:""; width:7px; height:7px; border-radius:2px;
+  background:var(--petrol); display:inline-block; }
+
+.card { background:var(--card); border:1px solid var(--line);
+  border-left:3px solid var(--stripe,var(--petrol)); border-radius:10px;
+  padding:16px 20px; margin-bottom:12px; page-break-inside:avoid; }
+.tag { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; padding:4px 10px; border-radius:99px; margin-bottom:9px; }
+.card h3 { font-family:var(--serif); font-size:20px; font-weight:600;
+  line-height:1.2; margin-bottom:4px; text-wrap:balance; }
+.card .disc { font-family:var(--mono); font-size:14px; font-weight:600; }
+.card .brand { font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:9px; }
+.card p { font-size:14px; color:#28352f; }
+blockquote { font-family:var(--serif); font-style:italic; font-size:14.5px;
+  color:var(--muted); border-left:2px solid var(--line); padding:2px 0 2px 14px;
+  margin:12px 0; }
+.card img { max-width:100%; border:1px solid var(--line); border-radius:6px;
+  margin-top:12px; display:block; }
+
+.panel { background:var(--card); border:1px solid var(--line);
+  border-radius:10px; padding:18px 20px; overflow-x:auto; }
+.panel .cap { font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:10px; }
+.issues { background:#fbf3e3; border:1px solid #ecdcb4; border-radius:10px;
+  padding:14px 18px; font-size:13px; color:#7a5c14; }
+.empty { color:var(--muted); font-size:13.5px; font-style:italic; padding:2px; }
+footer { font-family:var(--mono); text-align:center; color:var(--faint);
+  font-size:10.5px; margin-top:34px; border-top:1px solid var(--line); padding-top:14px; }
+
+@media print {
+  body { background:#fff; padding:0; }
+  .card,.panel,.kpis { border-color:#ccc; }
+  h2 { break-after:avoid; }
+}
 """
 
 
@@ -63,10 +105,10 @@ def esc(s):
 
 
 def event_card(ev, workspace, reports_dir):
-    label, color, bg = TYPE_META.get(ev.get("event_type"), TYPE_META["other_change"])
-    disc = f' <span class="disc">{esc(ev["discount"])}</span>' if ev.get("discount") else ""
+    label, ink, bg, stripe = TYPE_META.get(ev.get("event_type"), TYPE_META["other_change"])
+    disc = f' &middot; <span class="disc" style="color:{ink}">{esc(ev["discount"])}</span>' if ev.get("discount") else ""
     end = (ev.get("dates_seen") or {}).get("announced_end")
-    end_html = f'<div class="brand">Fin annoncée : {esc(end)}</div>' if end else ""
+    end_html = f'<div class="brand">Fin annoncée · {esc(end)}</div>' if end else ""
     quote = f"<blockquote>« {esc(ev['evidence'])} »</blockquote>" if ev.get("evidence") else ""
     img = ""
     shot = ev.get("screenshot")
@@ -78,11 +120,11 @@ def event_card(ev, workspace, reports_dir):
                 img = f'<img src="../{rel.as_posix()}" alt="capture">'
             except ValueError:
                 img = f'<img src="{shot_abs.as_uri()}" alt="capture">'
-    return f"""<div class="card">
-<span class="tag" style="color:{color};background:{bg}">{label}</span>
+    return f"""<div class="card" style="--stripe:{stripe}">
+<span class="tag" style="color:{ink};background:{bg}">{label}</span>
 <h3>{esc(ev.get('title', '(sans titre)'))}{disc}</h3>
-<div class="brand">{esc(ev['brand'])} — {esc(ev['country'])}</div>
-{end_html}<p style="font-size:13px">{esc(ev.get('summary', ''))}</p>
+<div class="brand">{esc(ev['brand'])} &middot; {esc(ev['country'])}</div>
+{end_html}<p>{esc(ev.get('summary', ''))}</p>
 {quote}{img}
 </div>"""
 
@@ -98,13 +140,13 @@ def brand_chart(calendar):
     peak = max(c for _, c in top)
     rows, y = [], 0
     for name, c in top:
-        w = int(480 * c / peak)
+        w = int(470 * c / peak)
         rows.append(
-            f'<text x="0" y="{y+14}" font-size="12" fill="#44546a">{esc(name)}</text>'
-            f'<rect x="170" y="{y+3}" width="{w}" height="14" rx="3" fill="#1d4e79"></rect>'
-            f'<text x="{176+w}" y="{y+14}" font-size="12" fill="#0f2a43" font-weight="600">{c}</text>'
+            f'<text x="0" y="{y+15}" font-size="12.5" fill="#5c6b67" font-family="system-ui">{esc(name)}</text>'
+            f'<rect x="180" y="{y+3}" width="{w}" height="16" rx="3" fill="#0f5f5c"></rect>'
+            f'<text x="{188+w}" y="{y+16}" font-size="12" fill="#12211f" font-weight="600" font-family="ui-monospace,monospace">{c}</text>'
         )
-        y += 26
+        y += 28
     return (f'<svg viewBox="0 0 700 {y}" width="100%" height="{y}" role="img" '
             f'aria-label="Opérations en cours par enseigne">{"".join(rows)}</svg>')
 
@@ -144,14 +186,14 @@ def main():
     if diff:
         for t in diff.get("targets", []):
             if t.get("status") == "fetch_failed":
-                issues.append(f"{t['slug']} : capture en échec ({esc(t.get('error', ''))})")
-    baseline = f" · Comparé au {esc(diff['baseline'])}" if diff else ""
+                issues.append(f"{esc(t['slug'])} : capture en échec ({esc(t.get('error', ''))})")
+    baseline = f" · base {esc(diff['baseline'])}" if diff else ""
 
     sections = []
-    for key, title in [("promo_start", "🆕 Nouvelles opérations"),
-                       ("promo_end", "🔚 Opérations terminées"),
-                       ("promo_update", "✏️ Opérations modifiées"),
-                       ("other_change", "📋 Autres changements")]:
+    for key, title in [("promo_start", "Nouvelles opérations"),
+                       ("promo_end", "Opérations terminées"),
+                       ("promo_update", "Opérations modifiées"),
+                       ("other_change", "Autres changements")]:
         if by_type[key]:
             cards = "".join(event_card(e, workspace, reports_dir) for e in by_type[key])
             sections.append(f"<h2>{title}</h2>{cards}")
@@ -159,26 +201,29 @@ def main():
         sections.append('<h2>Résultat</h2><p class="empty">Aucun changement commercial détecté aujourd\'hui.</p>')
     issues_html = ""
     if issues:
-        issues_html = '<h2>⚠️ Problèmes de surveillance</h2><div class="issues">' + "<br>".join(issues) + "</div>"
+        issues_html = '<h2>Problèmes de surveillance</h2><div class="issues">' + "<br>".join(issues) + "</div>"
 
     page = f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Veille concurrentielle — {esc(date)}</title><style>{CSS}</style></head>
 <body><div class="wrap">
-<header><h1>Veille concurrentielle — {esc(date)}</h1>
-<p>Rapport quotidien{baseline}</p></header>
+<div class="masthead">
+<div class="eyebrow">Veille concurrentielle · Rapport quotidien</div>
+<h1>Ce qui a bougé le {esc(date)}</h1>
+<div class="meta">Comparaison jour à jour{baseline}</div>
+</div>
 <div class="kpis">
-<div class="kpi"><b>{len(by_type['promo_start'])}</b><span>nouvelles opérations</span></div>
-<div class="kpi"><b>{len(by_type['promo_end'])}</b><span>opérations terminées</span></div>
-<div class="kpi"><b>{len(by_type['promo_update'])}</b><span>modifications</span></div>
-<div class="kpi"><b>{ongoing}</b><span>opérations en cours (marché)</span></div>
+<div class="kpi hot"><b>{len(by_type['promo_start'])}</b><span>Nouvelles</span></div>
+<div class="kpi"><b>{len(by_type['promo_end'])}</b><span>Terminées</span></div>
+<div class="kpi"><b>{len(by_type['promo_update'])}</b><span>Modifiées</span></div>
+<div class="kpi"><b>{ongoing}</b><span>En cours · marché</span></div>
 </div>
 {''.join(sections)}
 {issues_html}
-<h2>📊 Opérations en cours par enseigne</h2>
-<div class="chart">{brand_chart(calendar)}</div>
-<footer>Généré par competitor-homepage-watch · Les dates sont des dates observées lors des passages quotidiens.</footer>
+<h2>Opérations en cours par enseigne</h2>
+<div class="panel"><div class="cap">Nombre d'opérations actives</div>{brand_chart(calendar)}</div>
+<footer>competitor-homepage-watch · dates observées lors des passages quotidiens</footer>
 </div></body></html>"""
 
     out = reports_dir / f"{date}.html"

@@ -1,87 +1,115 @@
 # Design system — visual output rules
 
 Every visual artifact this skill produces (daily HTML report, monthly dashboard,
-and any ad-hoc HTML view the agent generates in analysis mode) MUST look like it
-came from the same product. This file is the single source of truth for that
-look. The bundled scripts (`render_report.py`, `build_dashboard.py`) already
-encode these exact values — read this before modifying a script or generating
-any new visual, and reuse these tokens rather than inventing a palette.
+and any ad-hoc HTML view generated in analysis mode) MUST look like it came from
+the same product: an **intelligence briefing** — the refined analyst-desk look of
+a premium market-intelligence report. The bundled scripts (`render_report.py`,
+`build_dashboard.py`) already encode these exact values. Read this before
+modifying a script or generating any new visual, and reuse these tokens rather
+than inventing a palette.
 
-Why this matters: the model that runs this skill will change over time, and each
-model has its own default aesthetic. Pinning the tokens here keeps every report
-consistent across model versions and across the two scripts.
+Why this matters: the model that runs this skill changes over time, and each
+model has its own default aesthetic. Pinning the system here keeps every output
+consistent, distinctive, and genuinely pleasant across model versions.
 
-## Design tokens (light theme — see note)
+## The idea
+
+A calm porcelain paper, deep petrol ink, and a single warm amber signal for
+"new/alert" energy. The character comes from **type**: an editorial serif for
+titles, a humanist sans for the body, and a monospace for every figure and date
+(the "data" texture of an analyst's terminal). Not corporate navy-and-blue;
+not the generic AI cream-serif-terracotta. Restraint everywhere, one confident
+accent, precise details.
+
+## Design tokens
 
 **Palette**
 
 | Token | Hex | Use |
 |---|---|---|
-| `--navy` | `#0f2a43` | Header background, headings, primary text emphasis |
-| `--blue` | `#1d4e79` | Primary accent: chart bars, links, headings level 3 |
-| `--ink` | `#1f2733` | Body text |
-| `--muted` | `#5b6b7c` | Secondary text, labels |
-| `--faint` | `#8b98a7` | Footnotes, axis ticks |
-| `--page` | `#f2f4f7` | Page background |
-| `--surface` | `#ffffff` | Cards, panels |
-| `--border` | `#e3e8ee` | Card/table borders |
-| `--header-sub` | `#b9c8d8` | Subtitle text on the navy header |
+| `--paper` | `#f6f7f5` | Page background — a cool porcelain neutral, chosen not defaulted |
+| `--card` | `#ffffff` | Cards, panels, stat tiles |
+| `--ink` | `#12211f` | Body text, masthead top rule (near-black, petrol bias) |
+| `--petrol` | `#0f5f5c` | Primary accent: eyebrows, section markers, chart bars, brand #1 |
+| `--amber` | `#c8792b` | Signal accent — the single "hot" highlight (new-operations KPI). Use sparingly |
+| `--muted` | `#5c6b67` | Secondary text, labels |
+| `--faint` | `#93a09b` | Footnotes, axis ticks, eyebrow-on-card |
+| `--line` | `#dbe0dd` | Hairline borders, grid, dividers |
 
-**Semantic colors** (event types — text on tint, never used as the accent):
+**Semantic colors** (event types — ink text on tint, plus a left card stripe;
+never used as the main accent):
 
-| Meaning | Text | Tint background |
+| Meaning | Ink | Tint | Stripe |
+|---|---|---|---|
+| New operation (`promo_start`) | `#1f7a5a` | `#e8f2ec` | `#1f7a5a` |
+| Ended operation (`promo_end`) | `#a8452f` | `#f6eae5` | `#a8452f` |
+| Modified operation (`promo_update`) | `#9a6a12` | `#f5eddb` | `#9a6a12` |
+| Other change (`other_change`) | `#3d5350` | `#eaeeec` | `#3d5350` |
+| Warning / issues panel | `#7a5c14` | `#fbf3e3`, border `#ecdcb4` |  |
+
+**Brand series** (Gantt rows & brand chips, cycled by sorted brand+country so a
+brand keeps its color): `#0f5f5c`, `#1f7a5a`, `#a8452f`, `#7a4fa0`, `#2c6b8a`,
+`#9a6a12`, `#556b2f`, `#b0567a`.
+
+**Typography** — three roles, all system stacks (no web fonts; the reports must
+open offline):
+
+| Role | Stack | Used for |
 |---|---|---|
-| New operation (`promo_start`) | `#0e7a4a` | `#e6f5ee` |
-| Ended operation (`promo_end`) | `#a33b3b` | `#faecec` |
-| Modified operation (`promo_update`) | `#8a6d1a` | `#faf4e0` |
-| Other change (`other_change`) | `#41586e` | `#eef2f6` |
-| Warning / issues panel | `#6b5a1a` | `#fff8e6`, border `#e8d9a0` |
+| Display serif | `"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif` | Masthead title, card titles, brand sub-heads |
+| Body sans | `system-ui,-apple-system,"Segoe UI",Roboto,sans-serif` | Body text, labels, table cells |
+| Mono | `ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace` | KPI numbers, dates, discounts, meta lines, ticks |
 
-**Brand series palette** (Gantt rows, cycled by brand+country, in order):
-`#1d4e79`, `#0e7a4a`, `#a3521a`, `#7a3fb8`, `#0f7d8a`, `#b03b5a`, `#5a6b1a`, `#8a6d1a`.
-Assign deterministically by sorted brand+country so a brand keeps its color
-across runs.
-
-**Typography**
-- Family: `"Helvetica Neue", Arial, sans-serif` (system-safe; no web fonts — the
-  reports must open offline).
-- Scale: page title 20–22px/600; section `h2` 15px; sub-head `h3` 13px; body
-  13px; captions/labels 11–12px. Numbers in KPIs 26px.
-- Use `font-variant-numeric: tabular-nums` wherever figures align in columns.
+Scale: masthead title 32–33px serif; card title 20px serif; KPI number 30px
+mono; section `h2` 12px uppercase tracked sans; body 14px; eyebrow/label
+10.5–11px uppercase, letter-spacing .14–.18em. Use `text-wrap: balance` on
+serif headings and `font-variant-numeric: tabular-nums` on aligned figures.
 
 **Layout & spacing**
-- Centered column, `max-width` ~860px (report) / ~940px (dashboard).
-- Radius: 10px on cards/panels/header, 4–6px on inner elements (bars, images).
-- Lay out groups with flex/grid + `gap`, not per-element margins.
-- Wide content (tables, the Gantt SVG) sits in a panel with `overflow-x: auto`
-  so the page never scrolls sideways.
+- Narrow editorial measure: report ~760px, dashboard ~940px, centered.
+- Masthead: 3px `--ink` top rule → petrol eyebrow → serif title → mono meta line
+  above a hairline. This is the signature; every page opens with it.
+- KPI row: a single rounded tile group with 1px `--line` gutters (grid, gap:1px
+  on a `--line` background) — reads as one instrument panel, not four boxes.
+- Section headings are quiet uppercase labels with a small petrol square marker
+  and a hairline underline — structure without decoration.
+- Radius 10–12px on cards/panels, 5–6px on inner elements.
+- Wide content (tables, the Gantt SVG) lives in a `.panel` with
+  `overflow-x: auto`; the page body never scrolls sideways.
 
 **Components**
-- **Header**: navy block, white title, muted subtitle line stating scope/date.
-- **KPI row**: equal flex cards, big tabular number + small muted label.
-- **Event card**: semantic tag pill, title (+ discount in green), brand·country
-  line, summary, evidence in a `blockquote`, screenshot below.
-- **Charts**: inline SVG only (no libraries, no external assets); faint
-  gridlines, solid accent bars, values labeled.
-- Print-friendly: `@media print` drops the page background and keeps borders,
-  because these pages are routinely saved to PDF from the browser.
+- **Event card**: left stripe in the semantic color, a small uppercase tag pill,
+  a serif title with the discount as a mono chip, an uppercase faint brand·country
+  line, a sentence of body, and the evidence as an *italic serif pull-quote*.
+  Screenshot below, hairline-framed.
+- **Gantt** (dashboard): weekend columns tinted with 4% petrol; Monday/1st day
+  ticks in mono; bars rounded with a faint white top highlight for depth; a
+  brand chip + label on the left; ongoing operations get a faded tail to signal
+  "open-ended". Labels/discounts inside bars when they fit.
+- **Charts**: inline hand-built SVG only — no libraries, no external assets.
+
+**Print** — `@media print` drops the paper background, keeps hairlines, and
+avoids breaking a heading from its content. These pages are routinely saved to
+PDF from the browser, so they must print as cleanly as they display.
 
 ## Rules for any new visual output
 
-1. Reuse the tokens above verbatim. Do not introduce a new hue; if you need
-   another categorical color, take the next unused entry from the brand series
-   palette.
-2. Emit **self-contained** HTML — all CSS inline in a `<style>` block, images as
-   relative paths or data URIs, SVG hand-built. No CDN links (they break offline
-   and in email).
-3. Match the existing structure: navy header → KPI row → titled panels. A new
-   view should read as another page of the same report, not a different app.
-4. Keep copy in French for client-facing output, and lead with the outcome.
+1. Reuse the tokens above verbatim. Never introduce a new hue; for another
+   categorical color, take the next unused entry from the brand series.
+2. Emit **self-contained** HTML — CSS inline in one `<style>`, tokens as
+   `:root` custom properties, images as relative paths or data URIs, SVG
+   hand-built. No CDN links (they break offline and in email).
+3. Open with the masthead (rule → eyebrow → serif title → mono meta) and keep
+   the three type roles in their lanes (serif = titles, sans = body, mono =
+   figures/dates). A new view must read as another page of the same briefing.
+4. Spend boldness once — the amber signal and the serif titles carry the
+   personality; keep everything around them quiet.
+5. Client-facing copy in French; lead with the outcome.
 
 ## Note on theming
 
-These reports deliberately commit to a single light theme: they are documents
-meant to be read, printed, and turned into PDF, not an app UI that follows an OS
-dark-mode toggle. That is a deliberate choice, not an omission — keep it light
-unless the user explicitly asks for a dark variant, in which case redefine the
-tokens (don't hardcode new colors inline).
+These reports deliberately commit to a single light theme: they are documents to
+be read, printed, and turned into PDF, not an app UI that follows an OS dark
+mode. That is a choice, not an omission — keep it light unless the user asks for
+a dark variant, in which case redefine the `:root` tokens (never hardcode new
+colors inline).

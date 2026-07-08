@@ -26,8 +26,9 @@ from pathlib import Path
 
 MONTHS_FR = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
              "août", "septembre", "octobre", "novembre", "décembre"]
-PALETTE = ["#1d4e79", "#0e7a4a", "#a3521a", "#7a3fb8", "#0f7d8a", "#b03b5a",
-           "#5a6b1a", "#8a6d1a"]
+# Brand series — refined, on-system, cycled deterministically by sorted brand+country
+PALETTE = ["#0f5f5c", "#1f7a5a", "#a8452f", "#7a4fa0", "#2c6b8a", "#9a6a12",
+           "#556b2f", "#b0567a"]
 
 
 def esc(s):
@@ -96,32 +97,50 @@ def main():
     for i, key in enumerate(sorted(rows)):
         brand_color[key] = PALETTE[i % len(PALETTE)]
 
-    # SVG Gantt: left label column + day grid
-    LABEL_W, DAY_W, ROW_H, PAD_T = 150, max(14, int(620 / span_days)), 26, 28
-    chart_w = LABEL_W + span_days * DAY_W + 20
+    # SVG Gantt: left label column + day grid (weekend shading, month/week ticks)
+    LABEL_W, DAY_W, ROW_H, PAD_T = 158, max(15, int(640 / span_days)), 30, 34
+    SANS = "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"
+    MONO = "ui-monospace,SF Mono,Menlo,monospace"
+    chart_w = LABEL_W + span_days * DAY_W + 24
     total_rows = sum(len(v) for v in rows.values())
-    chart_h = PAD_T + total_rows * ROW_H + 10
-    svg = [f'<svg viewBox="0 0 {chart_w} {chart_h}" width="100%" height="{chart_h}" font-family="Arial" role="img" aria-label="Frise des opérations">']
-    # day gridlines + weekly labels
+    chart_h = PAD_T + total_rows * ROW_H + 12
+    grid_top, grid_bot = PAD_T - 4, chart_h - 10
+    svg = [f'<svg viewBox="0 0 {chart_w} {chart_h}" width="100%" height="{chart_h}" role="img" aria-label="Frise des opérations">']
+    # weekend column shading (drawn first, behind everything)
+    for i in range(span_days):
+        day = win_start + datetime.timedelta(days=i)
+        if day.weekday() >= 5:
+            x = LABEL_W + i * DAY_W
+            svg.append(f'<rect x="{x}" y="{grid_top}" width="{DAY_W}" height="{grid_bot-grid_top}" fill="#0f5f5c" opacity="0.04"/>')
+    # day gridlines + day-number ticks (Mondays + the 1st)
     for i in range(span_days):
         x = LABEL_W + i * DAY_W
         day = win_start + datetime.timedelta(days=i)
-        stroke = "#dde3ea" if day.weekday() < 5 else "#eef2f6"
-        svg.append(f'<line x1="{x}" y1="{PAD_T}" x2="{x}" y2="{chart_h-8}" stroke="{stroke}"/>')
+        svg.append(f'<line x1="{x}" y1="{grid_top}" x2="{x}" y2="{grid_bot}" stroke="#dbe0dd" stroke-width="{1 if day.weekday()==0 else 0.5}"/>')
         if day.day == 1 or day.weekday() == 0:
-            svg.append(f'<text x="{x+2}" y="{PAD_T-8}" font-size="10" fill="#8b98a7">{day.day:02d}</text>')
+            svg.append(f'<text x="{x+3}" y="{grid_top-8}" font-size="10" fill="#93a09b" font-family="{MONO}">{day.day:02d}</text>')
     y = PAD_T
     for key in sorted(rows):
         color = brand_color[key]
         for o, cs, ce in sorted(rows[key], key=lambda t: t[1]):
             x = LABEL_W + (cs - win_start).days * DAY_W
-            w = max(DAY_W - 2, ((ce - cs).days + 1) * DAY_W - 2)
-            label = f"{o['brand']} {o['country']}"
-            svg.append(f'<text x="0" y="{y+ROW_H//2+4}" font-size="11" fill="#44546a">{esc(label)}</text>')
-            svg.append(f'<rect x="{x}" y="{y+4}" width="{w}" height="{ROW_H-10}" rx="4" fill="{color}" opacity="0.92"><title>{esc(o["title"])}</title></rect>')
-            cap = o["title"] if len(o["title"]) < 34 else o["title"][:31] + "…"
-            disc = f" {o['discount']}" if o.get("discount") else ""
-            svg.append(f'<text x="{x+6}" y="{y+ROW_H//2+4}" font-size="10.5" fill="#fff" font-weight="600">{esc(cap)}{esc(disc)}</text>')
+            w = max(DAY_W - 3, ((ce - cs).days + 1) * DAY_W - 3)
+            ongoing_bar = o.get("status") == "ongoing"
+            # brand chip + label
+            svg.append(f'<rect x="0" y="{y+ROW_H//2-4}" width="8" height="8" rx="2" fill="{color}"/>')
+            svg.append(f'<text x="14" y="{y+ROW_H//2+4}" font-size="11.5" fill="#5c6b67" font-family="{SANS}">{esc(o["brand"])} {esc(o["country"])}</text>')
+            bar_h = ROW_H - 12
+            svg.append(f'<rect x="{x}" y="{y+5}" width="{w}" height="{bar_h}" rx="5" fill="{color}"><title>{esc(o["title"])}</title></rect>')
+            # soft top highlight for a bit of depth
+            svg.append(f'<rect x="{x}" y="{y+5}" width="{w}" height="{bar_h/2}" rx="5" fill="#ffffff" opacity="0.10"/>')
+            if ongoing_bar:  # open-ended marker: fading tail
+                svg.append(f'<rect x="{x+w-6}" y="{y+5}" width="6" height="{bar_h}" fill="{color}" opacity="0.45"/>')
+            cap = o["title"] if len(o["title"]) < 30 else o["title"][:27] + "…"
+            disc = f"  {o['discount']}" if o.get("discount") else ""
+            if w > 70:
+                svg.append(f'<text x="{x+9}" y="{y+ROW_H//2+4}" font-size="10.5" fill="#ffffff" font-weight="600" font-family="{SANS}">{esc(cap)}</text>')
+                if disc:
+                    svg.append(f'<text x="{x+w-8}" y="{y+ROW_H//2+4}" font-size="10.5" fill="#ffffff" font-weight="700" text-anchor="end" font-family="{MONO}">{esc(o["discount"])}</text>')
             y += ROW_H
     svg.append("</svg>")
     gantt = "".join(svg) if active else '<p class="empty">Aucune opération dans cette fenêtre.</p>'
@@ -136,30 +155,58 @@ def main():
             f'<td>{esc(o.get("ended_on") or ("→ " + o.get("announced_end")) if o.get("announced_end") and not o.get("ended_on") else (o.get("ended_on") or "en cours"))}</td></tr>'
             for o, _, _ in items)
         brand_rows.append(
-            f'<h3 style="color:{brand_color[key]}">{esc(key[0])} — {esc(key[1])}</h3>'
+            f'<h3><span class="chip" style="background:{brand_color[key]}"></span>{esc(key[0])} · {esc(key[1])}</h3>'
             f'<table><thead><tr><th>Opération</th><th>Remise</th><th>Début</th><th>Fin</th></tr></thead><tbody>{cells}</tbody></table>')
 
     css = """
-* { box-sizing: border-box; margin: 0; }
-body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f2f4f7; color: #1f2733;
-       line-height: 1.5; padding: 28px 16px; }
-.wrap { max-width: 940px; margin: 0 auto; }
-header { background: #0f2a43; color: #fff; border-radius: 10px; padding: 22px 26px; }
-header h1 { font-size: 20px; font-weight: 600; }
-header p { color: #b9c8d8; font-size: 13px; margin-top: 4px; }
-.kpis { display: flex; gap: 12px; margin: 16px 0 22px; flex-wrap: wrap; }
-.kpi { flex: 1 1 130px; background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e3e8ee; }
-.kpi b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
-.kpi span { font-size: 12px; color: #5b6b7c; }
-h2 { font-size: 15px; color: #0f2a43; margin: 24px 0 10px; }
-h3 { font-size: 13px; margin: 16px 0 6px; }
-.panel { background: #fff; border: 1px solid #e3e8ee; border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-bottom: 6px; }
-th { background: #eef2f6; text-align: left; padding: 5px 8px; color: #44546a; }
-td { border-bottom: 0.5px solid #e3e8ee; padding: 5px 8px; }
-.empty { color: #5b6b7c; font-size: 13px; }
-footer { text-align: center; color: #8b98a7; font-size: 11px; margin-top: 26px; }
-@media print { body { background: #fff; padding: 0; } }
+:root {
+  --paper:#f6f7f5; --card:#ffffff; --ink:#12211f; --petrol:#0f5f5c;
+  --amber:#c8792b; --muted:#5c6b67; --faint:#93a09b; --line:#dbe0dd;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+}
+* { box-sizing:border-box; margin:0; }
+body { font-family:var(--sans); background:var(--paper); color:var(--ink);
+  line-height:1.55; padding:40px 18px; -webkit-font-smoothing:antialiased; }
+.wrap { max-width:940px; margin:0 auto; }
+.masthead { border-top:3px solid var(--ink); padding-top:14px; margin-bottom:26px; }
+.eyebrow { font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--petrol); font-weight:600; }
+.masthead h1 { font-family:var(--serif); font-size:32px; line-height:1.08;
+  font-weight:600; letter-spacing:-.01em; margin:6px 0 8px; text-wrap:balance; }
+.masthead .meta { font-family:var(--mono); font-size:12px; color:var(--muted);
+  border-top:1px solid var(--line); padding-top:8px; }
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+  background:var(--line); border:1px solid var(--line); border-radius:12px;
+  overflow:hidden; margin:0 0 30px; }
+.kpi { background:var(--card); padding:16px; }
+.kpi b { display:block; font-family:var(--mono); font-size:30px; font-weight:600;
+  line-height:1; font-variant-numeric:tabular-nums; }
+.kpi span { display:block; font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted); margin-top:7px; }
+h2 { font-family:var(--sans); font-size:12px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); font-weight:600;
+  margin:30px 0 12px; padding-bottom:7px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:8px; }
+h2::before { content:""; width:7px; height:7px; border-radius:2px;
+  background:var(--petrol); display:inline-block; }
+h3 { font-family:var(--serif); font-size:16px; font-weight:600; margin:18px 0 6px;
+  display:flex; align-items:center; gap:8px; }
+h3 .chip { width:9px; height:9px; border-radius:3px; display:inline-block; }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:18px 20px; overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:12.5px; margin-bottom:4px; }
+th { text-align:left; padding:7px 8px; color:var(--faint); font-weight:600;
+  font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  border-bottom:1px solid var(--line); }
+td { border-bottom:1px solid #eef1ee; padding:7px 8px; }
+td:nth-child(2),td:nth-child(3),td:nth-child(4){ font-family:var(--mono); font-size:12px; }
+tr:last-child td { border-bottom:none; }
+.empty { color:var(--muted); font-size:13.5px; font-style:italic; }
+footer { font-family:var(--mono); text-align:center; color:var(--faint);
+  font-size:10.5px; margin-top:34px; border-top:1px solid var(--line); padding-top:14px; }
+@media print { body { background:#fff; padding:0; } .panel,.kpis { border-color:#ccc; } h2 { break-after:avoid; } }
 """
 
     page = f"""<!DOCTYPE html>
@@ -167,19 +214,22 @@ footer { text-align: center; color: #8b98a7; font-size: 11px; margin-top: 26px; 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tableau de bord — {esc(title)}</title><style>{css}</style></head>
 <body><div class="wrap">
-<header><h1>Plan commercial du marché — {esc(title)}</h1>
-<p>Vue cumulée · {esc(win_start.isoformat())} → {esc(win_end.isoformat())} · {len(active)} opérations sur la période</p></header>
-<div class="kpis">
-<div class="kpi"><b>{started}</b><span>opérations démarrées</span></div>
-<div class="kpi"><b>{ended}</b><span>opérations terminées</span></div>
-<div class="kpi"><b>{ongoing}</b><span>encore en cours</span></div>
-<div class="kpi"><b>{len(rows)}</b><span>enseignes actives</span></div>
+<div class="masthead">
+<div class="eyebrow">Veille concurrentielle · Plan commercial du marché</div>
+<h1>{esc(title)}</h1>
+<div class="meta">Vue cumulée · {esc(win_start.isoformat())} → {esc(win_end.isoformat())} · {len(active)} opérations</div>
 </div>
-<h2>📆 Frise des opérations</h2>
+<div class="kpis">
+<div class="kpi"><b>{started}</b><span>Démarrées</span></div>
+<div class="kpi"><b>{ended}</b><span>Terminées</span></div>
+<div class="kpi"><b>{ongoing}</b><span>En cours</span></div>
+<div class="kpi"><b>{len(rows)}</b><span>Enseignes actives</span></div>
+</div>
+<h2>Frise des opérations</h2>
 <div class="panel">{gantt}</div>
-<h2>📋 Détail par enseigne</h2>
+<h2>Détail par enseigne</h2>
 <div class="panel">{''.join(brand_rows) if brand_rows else '<p class="empty">Aucune opération.</p>'}</div>
-<footer>Généré par competitor-homepage-watch · Vue cumulée régénérée à la demande · dates observées lors des passages quotidiens.</footer>
+<footer>competitor-homepage-watch · vue cumulée régénérée à la demande · dates observées lors des passages quotidiens</footer>
 </div></body></html>"""
 
     out = ws / "dashboard.html"
