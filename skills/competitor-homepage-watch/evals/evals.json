@@ -1,0 +1,23 @@
+{
+  "skill_name": "competitor-homepage-watch",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I lead trade marketing for a retail chain. I want to track what our 3 main competitors put on their homepages in France and Spain — promos, sales operations, campaigns — every day, and keep a history. Set this up for me. Competitor homepages: https://www.example-a.com/ (FR), https://www.example-a.com/es/ (ES), https://www.example-b.fr/ (FR). Our own site is https://www.example-mine.fr/.",
+      "expected_output": "Creates a workspace with a valid watch.config.json containing 4 targets (one flagged own_brand), explains the Firecrawl vs HTTP fallback mode in effect, runs the first fetch via fetch_homepage.py, and correctly explains that day 1 has no diff baseline instead of inventing a comparison.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Run the daily competitor watch for the workspace at ./competitor-watch and tell me what changed.",
+      "expected_output": "Runs fetch, then diff_snapshots.py against the previous day, classifies diff blocks into promo_start/promo_end/promo_update/other_change events filtering noise (carousels, cookies), writes events/<date>.json and reports/<date>.md following the template, presents the alert in conversation, and runs update_calendar.py to archive events. If nothing changed, says so without fabricating events.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "From our competitor watch history, what commercial operations did BrandA run in France last November, and how does that compare to what the others were doing that month? I'm building next year's trade plan.",
+      "expected_output": "Reads calendar/calendar.json (not calendar.md), filters operations active in the target month using first_seen/ended_on overlap logic, presents a per-brand table with titles, discounts, observed periods and announced end dates, distinguishes observed vs announced dates, and references archived visuals.",
+      "files": []
+    }
+  ]
+}

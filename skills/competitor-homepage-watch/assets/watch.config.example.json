@@ -1,0 +1,11 @@
+{
+  "workspace": ".",
+  "language_hint": "fr",
+  "targets": [
+    { "brand": "BrandA",  "country": "FR", "url": "https://www.branda.example/",    "own_brand": false },
+    { "brand": "BrandA",  "country": "ES", "url": "https://www.branda.example/es/", "own_brand": false },
+    { "brand": "BrandB",  "country": "FR", "url": "https://www.brandb.example/",    "own_brand": false },
+    { "brand": "BrandC",  "country": "DE", "url": "https://www.brandc.example/",    "own_brand": false },
+    { "brand": "MyBrand", "country": "FR", "url": "https://www.mybrand.example/",   "own_brand": true }
+  ]
+}
