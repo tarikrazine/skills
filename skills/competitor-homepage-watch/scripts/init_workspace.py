@@ -35,11 +35,17 @@ quotidienne complète du skill competitor-homepage-watch sur ce workspace :
    (`render_report.py --workspace .`) — proposer d'ouvrir le HTML
 5. Archivage calendrier (`update_calendar.py --workspace . --events events/<date>.json`)
 
-Présenter ensuite le résumé du rapport en FRANÇAIS. Si rien n'a changé, le dire
+Présenter ensuite le résumé du rapport en FRANÇAIS, puis proposer la vue
+d'ensemble du mois (`build_dashboard.py`, voir raccourci « tableau de bord »). Si rien n'a changé, le dire
 simplement. Si une cible est bloquée ou en échec, le signaler dans la réponse.
 
 Autres raccourcis à comprendre :
 - « ouvre le rapport » → ouvrir le dernier `reports/<date>.html` (`open`)
+- « tableau de bord » / « le plan du mois » / « vue d'ensemble » / « dashboard »
+  → générer `dashboard.html` (`build_dashboard.py --workspace . --month <AAAA-MM>`,
+  ou `--days N`) et l'ouvrir. C'est la vue CUMULÉE du mois (frise de toutes les
+  opérations), à distinguer du rapport quotidien qui ne montre que les
+  changements du jour. À proposer spontanément en fin de veille.
 - « ouvre le dossier » → ouvrir ce workspace dans le gestionnaire de fichiers
   (`open .` sur macOS, `xdg-open .` sur Linux, `explorer .` sur Windows)
 - « ouvre la config » / « ajouter un concurrent » → ouvrir `watch.config.json`

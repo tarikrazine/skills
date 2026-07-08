@@ -20,7 +20,15 @@ Scripts handle the deterministic work; the agent handles the judgment:
 | Write the daily alert report | **agent** | `assets/report-template.md` |
 | Render the reader-friendly HTML report | script | `scripts/render_report.py` **[mutating]** |
 | Archive events into the calendar (+ ICS export) | script | `scripts/update_calendar.py` **[mutating]** |
+| Build the cumulative monthly dashboard (optional) | script | `scripts/build_dashboard.py` **[mutating]** |
 | Answer analysis questions (plan N-1, comparisons) | **agent** | `references/calendar-format.md` |
+
+**Daily report vs dashboard — keep them distinct.** The daily HTML report
+(`reports/<date>.html`) shows only what CHANGED versus the previous day. The
+dashboard (`dashboard.html`) is a CUMULATIVE view of every operation active in a
+window (a calendar month by default) as a Gantt timeline — the market's
+commercial plan at a glance. The daily run always produces the report; the
+dashboard is generated on demand (or offered at the end of a run).
 
 All script paths below are relative to this skill's directory. Resolve `<skill-dir>` to the directory containing this SKILL.md before running commands. Scripts are Python 3 standard library only — no pip installs needed.
 
@@ -130,6 +138,21 @@ python3 <skill-dir>/scripts/update_calendar.py --workspace <workspace> --events 
 ```
 
 The script appends events to `calendar/calendar.json` (a `promo_end` closes the matching open operation), copies referenced screenshots into `calendar/visuals/`, and re-renders both `calendar/calendar.md` and `calendar/calendar.ics`. The `.ics` file imports into Google Calendar or Outlook — every competitor operation appears as an all-day event range, so the commercial plan can be read in a real calendar app; UIDs are stable, so re-importing updates instead of duplicating. When the user asks about Google Calendar, don't just point at the file: reveal it in their file manager (`open -R <workspace>/calendar/calendar.ics` on macOS) and walk them through the import (calendar.google.com → Settings → Import & export → Import, ideally into a dedicated "Veille concurrence" calendar). Never edit `calendar.json` by hand — always go through the script so the lifecycle stays consistent.
+
+## Cumulative dashboard (on demand)
+
+When the user wants the big picture rather than today's diff — "montre le
+tableau de bord", "le plan du mois", "vue d'ensemble", "dashboard" — build it:
+
+```bash
+python3 <skill-dir>/scripts/build_dashboard.py --workspace <workspace> --month <YYYY-MM>
+```
+
+Use `--month YYYY-MM` for a calendar month (default: the latest month with
+activity) or `--days N` for a rolling window. It writes `dashboard.html` — a
+Gantt timeline of every operation active in the window, KPIs, and a per-brand
+breakdown. Offer to open it (`open dashboard.html`). It's also a natural thing
+to offer at the end of a daily run ("veux-tu la vue d'ensemble du mois ?").
 
 ## Analysis mode
 
