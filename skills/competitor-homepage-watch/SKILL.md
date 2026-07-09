@@ -167,13 +167,27 @@ It costs a few cents per capture (residential proxy + CAPTCHA solving), takes
 the target text-only and say so once. After a `screenshot.png` is saved, the
 event's `screenshot` field references it like any other.
 
-**Soft suggestion (at most once, max 2 targets).** If there are protected
-targets flagged `unsupported-on-protected-site` that do NOT have
-`screenshot_engine` set, you may mention **once** — not every run — that visuals
-for up to the two most important of them can be enabled via Browser Use (free
-tier + a few cents per capture), and offer the setup guide. Never enable it
-yourself, never nag, and cap the suggestion at 2 targets to control cost. If the
-user isn't interested, drop it and don't raise it again.
+**Soft suggestion (only after a real Firecrawl failure, at most once).** The
+trigger is empirical, not upfront: Firecrawl tried this site like any other and
+came back with text but `unsupported-on-protected-site`. Only then, if that
+target has no `screenshot_engine` set, you may mention **once** — not every run —
+that its visual can be enabled via Browser Use (free tier + a few cents per
+capture), and offer the setup guide. Never enable it yourself, never nag.
+
+**Capacity / credit awareness (important).** Browser Use's free tier covers a
+limited monthly volume; each stealth capture spends a bit of credit + residential
+proxy bandwidth. So cap what you propose:
+- Suggest enabling it for **at most the 2 most important** protected brands, not
+  all of them — that keeps daily cost within the free tier.
+- If the user's config already enables it on **many** protected targets (roughly
+  3+ sites × daily runs), warn that this will likely **exceed the free capacity**
+  and give two clear choices: (a) trim `screenshot_engine` back to the 2 most
+  important brands, or (b) **add credit to their Browser Use account** if they
+  want visuals on all of them. Present it as their decision; don't silently rack
+  up cost.
+- If a `capture_visual.py` run fails with an auth/quota error (HTTP 402/429),
+  say plainly that the free capacity looks used up and suggest adding credit,
+  then fall back to text-only for the rest of the run.
 
 ### 5. Archive into the commercial calendar
 

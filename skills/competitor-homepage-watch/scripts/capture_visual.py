@@ -123,7 +123,14 @@ def main():
             print(f"saved: {out} (browser-use stealth, cost≈${detail.get('cost')})")
         return 0
     except urllib.error.HTTPError as exc:
-        print(f"ERROR: browser-use API {exc.code}: {exc.read().decode('utf-8','replace')[:200]}", file=sys.stderr)
+        detail = exc.read().decode("utf-8", "replace")[:200]
+        if exc.code in (402, 429):
+            print("QUOTA: Browser Use free capacity looks used up "
+                  f"(HTTP {exc.code}). Suggest adding credit to the account, or "
+                  "trim screenshot_engine to fewer targets. Continuing text-only.",
+                  file=sys.stderr)
+            return 2
+        print(f"ERROR: browser-use API {exc.code}: {detail}", file=sys.stderr)
         return 1
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
