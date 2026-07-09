@@ -121,10 +121,14 @@ def event_card(ev, workspace, reports_dir, S):
         shot_abs = (workspace / shot).resolve()
         if shot_abs.exists():
             try:
-                rel = shot_abs.relative_to(reports_dir.parent)
-                img = f'<img src="../{rel.as_posix()}" alt="capture">'
+                src = "../" + shot_abs.relative_to(reports_dir.parent).as_posix()
             except ValueError:
-                img = f'<img src="{shot_abs.as_uri()}" alt="capture">'
+                src = shot_abs.as_uri()
+            if shot_abs.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+                img = f'<img src="{src}" alt="capture">'
+            else:
+                # e.g. a full-page PDF from the stealth capture — link it, don't inline
+                img = f'<a class="visual-link" href="{src}">📄 Voir le visuel ({shot_abs.suffix.lstrip(".").upper()})</a>'
     return f"""<div class="card" style="--stripe:{stripe}">
 <span class="tag" style="color:{ink};background:{bg}">{label}</span>
 <h3>{esc(ev.get('title', '(sans titre)'))}{disc}</h3>
