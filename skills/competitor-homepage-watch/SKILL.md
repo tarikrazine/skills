@@ -71,25 +71,36 @@ competitor-watch/
    - Offer to open the config for editing (`open -t <workspace>/watch.config.json`
      or their editor) and fill the brands/countries/URLs together while it's
      open in front of them.
-   - If `FIRECRAWL_API_KEY` is missing, explain it comes from firecrawl.dev →
-     API Keys, then offer to add the export line to their shell profile for
-     them (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) — with their
-     confirmation, never silently. Verify afterwards with a one-target fetch.
-   - Do NOT mention Browser Use / `BROWSER_USE_API_KEY` at setup unless the
-     config already enables `screenshot_engine: "browser-use"` on some target.
-     It's an optional add-on only for visuals on bot-protected sites; surface it
-     later, once, per the soft-suggestion rule in the daily run — not upfront.
-     When it IS needed, the setup mirrors Firecrawl: browser-use.com → API key →
-     `export BROWSER_USE_API_KEY="..."` with the user's confirmation.
-3. The starter config is a copy of `assets/watch.config.example.json`. Ask the
+3. **Set up the crawling tools via their OWN skills (preferred) — the client
+   should not have to paste API keys.** Both tools self-authenticate through
+   their CLIs, so delegate their install + auth to their official skills instead
+   of reinventing it:
+   - **Firecrawl (always needed).** Check `firecrawl --status`. If the CLI is
+     missing or not authenticated, install the official Firecrawl skill and
+     follow its install/auth flow:
+     `npx skills add firecrawl/cli@firecrawl -g -y`
+     (skill page: https://skills.sh/firecrawl/cli/firecrawl). Confirm with the
+     user before installing. As a last resort only, the scripts also accept a
+     `FIRECRAWL_API_KEY` env var (REST path). Verify with a one-target fetch.
+   - **Browser Use (only if a target has `screenshot_engine: "browser-use"`).**
+     Do NOT set it up otherwise. When needed, install the official Browser Use
+     skill and use its agent self-registration (no human key-paste):
+     `npx skills add browser-use/browser-use@browser-use -g -y`
+     (skill page: https://skills.sh/browser-use/browser-use/browser-use). It
+     runs `browser-use cloud signup`; `browser-use doctor` confirms auth. The
+     scripts also accept `BROWSER_USE_API_KEY` as a REST fallback.
+
+   In both cases the goal is zero manual API-key management: the CLI holds the
+   credentials, our scripts call the CLI. Keys are only a headless/CI fallback.
+4. The starter config is a copy of `assets/watch.config.example.json`. Ask the
    user which **output language** the reports and dashboard should be written in
    — `fr`, `en`, or `es` — and set `"language"` in the config. This is the
    language of *their* reports, independent of the languages of the competitor
    sites they watch; a French team can watch German and Spanish homepages and
    still get French reports. See `references/config-schema.md`.
-4. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
-4. Check crawling capability: if the `FIRECRAWL_API_KEY` environment variable is set, fetches use Firecrawl (JavaScript rendering + full-page screenshots — the visuals that get archived). Without it, fetches fall back to plain HTTP text extraction: still functional, but no screenshots and JS-heavy pages may come back thin. Tell the user which mode is active and recommend a Firecrawl key for production use. **Screenshot caveat:** each snapshot records a `screenshot_status` in `meta.json`. On standard sites Firecrawl captures a full-page screenshot (`captured`). On sites behind DataDome-class bot protection, the fetch escalates to Firecrawl's enhanced engine to read the content — but that engine **cannot take screenshots** (`unsupported-on-protected-site`). So the text/commercial reading always works on protected competitors; the visual is available only for competitors that don't need the enhanced engine. Set this expectation with the user rather than promising a screenshot for every target.
-5. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.
+5. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
+6. **Screenshot caveat:** each snapshot records a `screenshot_status` in `meta.json`. On standard sites Firecrawl captures a full-page screenshot (`captured`). On sites behind DataDome-class bot protection, the fetch escalates to Firecrawl's enhanced engine to read the content — but that engine **cannot take screenshots** (`unsupported-on-protected-site`). So the text/commercial reading always works on protected competitors; the visual is available only for competitors that don't need the enhanced engine, unless Browser Use is enabled for that target (step 4b of the daily run). Set this expectation rather than promising a screenshot for every target.
+7. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.
 
 ## Daily run
 
