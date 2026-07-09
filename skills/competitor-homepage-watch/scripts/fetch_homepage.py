@@ -19,7 +19,9 @@ import html
 import json
 import os
 import re
+import shutil
 import ssl
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -152,6 +154,42 @@ def fetch_via_firecrawl(url, api_key, timeout, extra_options=None):
     return markdown, raw_html, shot_bytes, status, warning
 
 
+def fetch_via_firecrawl_cli(url, timeout, extra_options=None):
+    """Use the authenticated `firecrawl` CLI (no API key needed — it self-auths
+    and auto-escalates its proxy on protected sites). Returns the same tuple as
+    the REST path: (markdown, raw_html, shot_bytes, status, warning)."""
+    fc = shutil.which("firecrawl")
+    cmd = [fc, "scrape", url, "--format", "markdown,html,screenshot", "--json"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    out = (proc.stdout or "").strip()
+    if not out:
+        raise RuntimeError(f"firecrawl CLI: {(proc.stderr or 'no output').strip()[:200]}")
+    try:
+        doc = json.loads(out)
+    except json.JSONDecodeError:
+        s, e = out.find("{"), out.rfind("}")
+        doc = json.loads(out[s:e + 1]) if s >= 0 and e > s else {}
+    data = doc.get("data") or doc
+    markdown = data.get("markdown") or ""
+    raw_html = data.get("html") or data.get("rawHtml") or ""
+    screenshot = data.get("screenshot") or ""
+    meta = data.get("metadata") or {}
+    status = meta.get("statusCode")
+    warning = doc.get("warning") or data.get("warning") or ""
+    shot_bytes = None
+    if isinstance(screenshot, str) and screenshot.startswith("http"):
+        try:
+            _, shot_bytes = http_get(screenshot, timeout)
+        except Exception:
+            shot_bytes = None
+    elif isinstance(screenshot, str) and screenshot.startswith("data:image"):
+        try:
+            shot_bytes = base64.b64decode(screenshot.split(",", 1)[1])
+        except Exception:
+            shot_bytes = None
+    return markdown, raw_html, shot_bytes, status, warning
+
+
 def fetch_via_http(url, timeout):
     status, body = http_get(url, timeout)
     raw_html = body.decode("utf-8", "replace")
@@ -176,16 +214,22 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
         "url": target["url"],
         "own_brand": bool(target.get("own_brand", False)),
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "engine": "firecrawl" if api_key else "http",
+        "engine": "firecrawl" if api_key else ("firecrawl-cli" if shutil.which("firecrawl") else "http"),
         "status": None,
         "error": None,
         "has_screenshot": False,
         "screenshot_status": "none",
         "suspected_blocked": False,
     }
+    fc_cli = shutil.which("firecrawl")
     try:
         warning = ""
-        if api_key:
+        if not api_key and fc_cli:
+            # Preferred no-key path: the authenticated firecrawl CLI (self-auths,
+            # auto-escalates proxy on protected sites).
+            meta["engine"] = "firecrawl-cli"
+            content, raw_html, shot, status, warning = fetch_via_firecrawl_cli(target["url"], timeout)
+        elif api_key:
             options = dict(firecrawl_defaults or {})
             options.update(target.get("firecrawl") or {})
             content, raw_html, shot, status, warning = fetch_via_firecrawl(target["url"], api_key, timeout, options)
@@ -209,14 +253,16 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
             (target_dir / "screenshot.png").write_bytes(shot)
             meta["has_screenshot"] = True
             meta["screenshot_status"] = "captured"
-        elif not api_key:
-            meta["screenshot_status"] = "no-key"  # HTTP fallback cannot screenshot
-        elif "screenshot" in (warning or "").lower():
-            # Firecrawl's enhanced/stealth engine (used to bypass DataDome-class
-            # bot protection) does not support screenshots — content is captured
-            # but no visual. This is a platform limitation, not a failure.
+        elif meta["engine"] == "http":
+            meta["screenshot_status"] = "http-no-screenshot"  # plain HTTP fallback can't screenshot
+        elif meta["suspected_blocked"] or "screenshot" in (warning or "").lower():
+            # Bot-protected site: the enhanced/stealth engine reads text but the
+            # engine can't (or was blocked from) screenshotting. Content may be
+            # captured; the visual isn't. Enable browser-use for this target to
+            # get the visual. Not a failure.
             meta["screenshot_status"] = "unsupported-on-protected-site"
-            meta["firecrawl_warning"] = warning
+            if warning:
+                meta["firecrawl_warning"] = warning
         else:
             meta["screenshot_status"] = "missing"
         ok = True
@@ -260,7 +306,13 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     api_key = os.environ.get("FIRECRAWL_API_KEY", "").strip() or None
-    print(f"engine: {'firecrawl' if api_key else 'http-fallback (no FIRECRAWL_API_KEY; no screenshots)'}")
+    if api_key:
+        engine_label = "firecrawl (REST, API key)"
+    elif shutil.which("firecrawl"):
+        engine_label = "firecrawl CLI (self-authenticated; screenshots on)"
+    else:
+        engine_label = "http-fallback (no firecrawl CLI or key; no screenshots, protected sites will 403)"
+    print(f"engine: {engine_label}")
     print(f"snapshot dir: {out_dir}")
 
     successes = 0

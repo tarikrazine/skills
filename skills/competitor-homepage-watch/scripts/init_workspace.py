@@ -106,8 +106,17 @@ def main():
         memory_dest.write_text(AGENT_MEMORY, encoding="utf-8")
         print(f"agent memory written: {memory_dest} (enables « lancer la veille »)")
 
-    key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
-    print(f"firecrawl key: {'OK (set)' if key else 'MISSING — exporter FIRECRAWL_API_KEY (indispensable pour les sites protégés + captures)'}")
+    fc_cli = shutil.which("firecrawl")
+    fc_key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+    if fc_cli:
+        firecrawl_state = "OK (firecrawl CLI installed — it self-authenticates; no key needed)"
+    elif fc_key:
+        firecrawl_state = "OK (FIRECRAWL_API_KEY set)"
+    else:
+        firecrawl_state = ("NOT SET UP — install the Firecrawl skill "
+                           "(npx skills add firecrawl/cli@firecrawl) so the agent can crawl; "
+                           "without it, protected competitor sites return 403")
+    print(f"firecrawl: {firecrawl_state}")
 
     print()
     print("Workspace prêt. Prochaines étapes :")

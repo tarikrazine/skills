@@ -1,0 +1,32 @@
+{
+  "project": "example-platform",
+  "specs_dir": "docs/specs",
+  "constitution": ".specdriven/constitution.md",
+  "language": "en",
+  "github": {
+    "repo": "your-org/your-repo",
+    "approval": "pr",
+    "spec_label": "spec",
+    "base_branch": "main"
+  },
+  "architect_teams": ["@your-org/architects"],
+  "approvers": {
+    "default": ["@your-org/architects"],
+    "areas": {
+      "apps/services/identity": ["@your-org/backend-a"],
+      "apps/services/commerce": ["@your-org/backend-b"],
+      "apps/web": ["@your-org/frontend"]
+    },
+    "expensive_paths": {
+      "packages/contracts": ["@your-org/architects"],
+      "**/migrations/": ["@your-org/architects"],
+      "apps/services/*/auth": ["@your-org/architects"],
+      "apps/services/commerce/**/ledger": ["@your-org/architects"]
+    }
+  },
+  "tiers": {
+    "0": { "name": "trivial", "spec": "none",  "requires": [] },
+    "1": { "name": "inline",  "spec": "issue", "requires": ["area-owner"] },
+    "2": { "name": "full",    "spec": "doc",   "requires": ["area-owner", "architect"] }
+  }
+}
