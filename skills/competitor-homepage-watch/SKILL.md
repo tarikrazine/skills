@@ -15,6 +15,7 @@ Scripts handle the deterministic work; the agent handles the judgment:
 |------|-----|------|
 | Bootstrap a new workspace | script | `scripts/init_workspace.py` **[bootstrap]** |
 | Fetch homepages → snapshots | script | `scripts/fetch_homepage.py` **[mutating]** |
+| Capture visuals for bot-protected sites (optional) | script | `scripts/capture_visual.py` **[mutating]** |
 | Diff today vs previous snapshot | script | `scripts/diff_snapshots.py` **[read-only]** |
 | Classify changes (promo start/end/noise) | **agent** | `references/promo-detection.md` |
 | Write the daily alert report | **agent** | `assets/report-template.md` |
@@ -74,6 +75,12 @@ competitor-watch/
      API Keys, then offer to add the export line to their shell profile for
      them (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) — with their
      confirmation, never silently. Verify afterwards with a one-target fetch.
+   - Do NOT mention Browser Use / `BROWSER_USE_API_KEY` at setup unless the
+     config already enables `screenshot_engine: "browser-use"` on some target.
+     It's an optional add-on only for visuals on bot-protected sites; surface it
+     later, once, per the soft-suggestion rule in the daily run — not upfront.
+     When it IS needed, the setup mirrors Firecrawl: browser-use.com → API key →
+     `export BROWSER_USE_API_KEY="..."` with the user's confirmation.
 3. The starter config is a copy of `assets/watch.config.example.json`. Ask the
    user which **output language** the reports and dashboard should be written in
    — `fr`, `en`, or `es` — and set `"language"` in the config. This is the
@@ -137,6 +144,36 @@ python3 <skill-dir>/scripts/render_report.py --workspace <workspace> --date <tod
 ```
 
 This produces `reports/<today>.html` — a self-contained page (KPIs, event cards with evidence and screenshots, per-brand activity chart) that opens with a double click and prints cleanly to PDF. Offer to open it (`open reports/<today>.html` on macOS). If the user has an alerting channel (email, Slack, n8n webhook), offer to send the report there; see `references/scheduling.md` for wiring options.
+
+### 4b. Capture visuals for bot-protected sites — OPT-IN, config-gated
+
+This step is **off by default** and must stay invisible unless the user has
+explicitly enabled it. Run `capture_visual.py` for a target **only if ALL** of
+these hold:
+- the target has `"screenshot_engine": "browser-use"` in `watch.config.json`, AND
+- `BROWSER_USE_API_KEY` is set in the environment, AND
+- that target's `meta.json` shows `screenshot_status: unsupported-on-protected-site`.
+
+If any is false, do nothing about visuals for that target and don't mention
+Browser Use — the text/commercial reading already works. When all hold:
+
+```bash
+python3 <skill-dir>/scripts/capture_visual.py --url <target-url> \
+  --out <workspace>/snapshots/<today>/<slug>/screenshot.png --country <cc>
+```
+
+It costs a few cents per capture (residential proxy + CAPTCHA solving), takes
+30–90s, and may still be blocked on the hardest sites — on exit code 2, leave
+the target text-only and say so once. After a `screenshot.png` is saved, the
+event's `screenshot` field references it like any other.
+
+**Soft suggestion (at most once, max 2 targets).** If there are protected
+targets flagged `unsupported-on-protected-site` that do NOT have
+`screenshot_engine` set, you may mention **once** — not every run — that visuals
+for up to the two most important of them can be enabled via Browser Use (free
+tier + a few cents per capture), and offer the setup guide. Never enable it
+yourself, never nag, and cap the suggestion at 2 targets to control cost. If the
+user isn't interested, drop it and don't raise it again.
 
 ### 5. Archive into the commercial calendar
 
