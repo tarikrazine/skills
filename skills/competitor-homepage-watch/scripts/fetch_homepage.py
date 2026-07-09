@@ -137,6 +137,7 @@ def fetch_via_firecrawl(url, api_key, timeout, extra_options=None):
     markdown = data.get("markdown") or ""
     raw_html = data.get("html") or ""
     screenshot = data.get("screenshot") or ""
+    warning = doc.get("warning") or data.get("warning") or ""
     shot_bytes = None
     if screenshot.startswith("http"):
         try:
@@ -148,7 +149,7 @@ def fetch_via_firecrawl(url, api_key, timeout, extra_options=None):
             shot_bytes = base64.b64decode(screenshot.split(",", 1)[1])
         except Exception:
             shot_bytes = None
-    return markdown, raw_html, shot_bytes, status
+    return markdown, raw_html, shot_bytes, status, warning
 
 
 def fetch_via_http(url, timeout):
@@ -179,19 +180,21 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
         "status": None,
         "error": None,
         "has_screenshot": False,
+        "screenshot_status": "none",
         "suspected_blocked": False,
     }
     try:
+        warning = ""
         if api_key:
             options = dict(firecrawl_defaults or {})
             options.update(target.get("firecrawl") or {})
-            content, raw_html, shot, status = fetch_via_firecrawl(target["url"], api_key, timeout, options)
+            content, raw_html, shot, status, warning = fetch_via_firecrawl(target["url"], api_key, timeout, options)
             # Bot walls (DataDome etc.) come back as HTTP 200 with a fake page,
             # so Firecrawl's own auto-escalation never triggers. Detect the wall
             # in the content and retry once with enhanced proxies (5 credits).
             if looks_blocked(content) and options.get("proxy") not in ("enhanced", "stealth"):
                 options["proxy"] = "enhanced"
-                content, raw_html, shot, status = fetch_via_firecrawl(target["url"], api_key, timeout, options)
+                content, raw_html, shot, status, warning = fetch_via_firecrawl(target["url"], api_key, timeout, options)
                 meta["engine"] = "firecrawl(enhanced-retry)"
         else:
             content, raw_html, shot, status = fetch_via_http(target["url"], timeout)
@@ -205,6 +208,17 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
         if shot:
             (target_dir / "screenshot.png").write_bytes(shot)
             meta["has_screenshot"] = True
+            meta["screenshot_status"] = "captured"
+        elif not api_key:
+            meta["screenshot_status"] = "no-key"  # HTTP fallback cannot screenshot
+        elif "screenshot" in (warning or "").lower():
+            # Firecrawl's enhanced/stealth engine (used to bypass DataDome-class
+            # bot protection) does not support screenshots — content is captured
+            # but no visual. This is a platform limitation, not a failure.
+            meta["screenshot_status"] = "unsupported-on-protected-site"
+            meta["firecrawl_warning"] = warning
+        else:
+            meta["screenshot_status"] = "missing"
         ok = True
     except Exception as exc:  # noqa: BLE001 — any per-target failure is recorded, batch continues
         meta["error"] = f"{type(exc).__name__}: {exc}"
@@ -257,8 +271,13 @@ def main():
         slug, ok, meta = fetch_target(target, out_dir, api_key, args.timeout, config.get("firecrawl"))
         if ok:
             successes += 1
-            shot = " +screenshot" if meta["has_screenshot"] else ""
-            blocked = " [SUSPECTED BLOCKED — content looks like a bot wall; try firecrawl proxy=stealth]" if meta["suspected_blocked"] else ""
+            if meta["has_screenshot"]:
+                shot = " +screenshot"
+            elif meta["screenshot_status"] == "unsupported-on-protected-site":
+                shot = " [no screenshot — bot-protected site, Firecrawl enhanced engine can't capture]"
+            else:
+                shot = ""
+            blocked = " [SUSPECTED BLOCKED — content looks like a bot wall]" if meta["suspected_blocked"] else ""
             print(f"OK   {slug} ({meta['engine']}{shot}){blocked}")
         else:
             print(f"FAIL {slug}: {meta['error']}")

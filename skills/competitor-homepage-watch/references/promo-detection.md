@@ -70,3 +70,15 @@ gap hides the exact last day.
   fallback on a JS-heavy site: the fetch is degraded, not the competitor's page
   emptied. Emit nothing; flag the target in the report's issues line and suggest
   a Firecrawl key if the fallback engine is the cause.
+
+## Screenshots (visuals) on protected sites
+
+When building an event, only set `screenshot` if the target's snapshot actually
+has one. Check `meta.json`'s `screenshot_status`: `captured` means a
+`screenshot.png` exists and you should reference it; `unsupported-on-protected-site`
+means the competitor is behind DataDome-class protection and Firecrawl's enhanced
+engine could not capture a visual (the text WAS captured — this is expected, not
+an error). For those events, leave `screenshot` null and don't apologize for it
+in the report — the evidence quote carries the signal. Mention in the report's
+issues line, once, which brands can't be screenshotted so the user knows why some
+calendar entries have no visual.
