@@ -17,6 +17,15 @@
       "skills": [
         "./skills/competitor-homepage-watch"
       ]
+    },
+    {
+      "name": "xquik-x-data",
+      "description": "Source-backed Xquik REST API and MCP workflow planning for public X data integrations",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/xquik-x-data"
+      ]
     }
   ]
 }
