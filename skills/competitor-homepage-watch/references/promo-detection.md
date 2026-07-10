@@ -88,11 +88,17 @@ gap hides the exact last day.
 ## Screenshots (visuals) on protected sites
 
 When building an event, only set `screenshot` if the target's snapshot actually
-has one. Check `meta.json`'s `screenshot_status`: `captured` means a
-`screenshot.png` exists and you should reference it; `unsupported-on-protected-site`
-means the competitor is behind DataDome-class protection and Firecrawl's enhanced
-engine could not capture a visual (the text WAS captured — this is expected, not
-an error). For those events, leave `screenshot` null and don't apologize for it
-in the report — the evidence quote carries the signal. Mention in the report's
-issues line, once, which brands can't be screenshotted so the user knows why some
-calendar entries have no visual.
+has one. Check `meta.json`'s `screenshot_status`:
+- `captured` — a `screenshot.png` exists (either from Firecrawl on a standard
+  site, or from the ScrapFly Web Unlocker on a DataDome-class one). Reference it.
+- `needs-web-unlocker` — the target is behind DataDome/Cloudflare and no
+  `SCRAPFLY_API_KEY` is set yet, so text may be partial and there's no visual.
+  Leave `screenshot` null and note once in the report's issues line that a free
+  ScrapFly key (scrapfly.io/register) will unlock these brands' text + visuals.
+- `unsupported-on-protected-site` — a hardened site the unlocker also couldn't
+  capture this run (rare). Leave `screenshot` null; the evidence quote carries
+  the signal. Don't apologize for it in the report.
+
+With the Web Unlocker configured, DataDome competitors (Norauto, Midas, ATU…)
+DO get real screenshots by default — so a missing visual is now the exception,
+usually meaning the key isn't set. Don't assume protected = no screenshot.
