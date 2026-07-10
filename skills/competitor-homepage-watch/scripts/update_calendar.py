@@ -248,8 +248,12 @@ def main():
     except (OSError, json.JSONDecodeError) as exc:
         print(f"ERROR: cannot read events {events_path}: {exc}", file=sys.stderr)
         return 1
+    # Accept both the bare list and the richer {"synthesis": ..., "events": [...]}
+    # object that render_report also consumes.
+    if isinstance(events, dict):
+        events = events.get("events") or []
     if not isinstance(events, list):
-        print("ERROR: events file must be a JSON array", file=sys.stderr)
+        print("ERROR: events file must be a JSON array (or an object with an 'events' array)", file=sys.stderr)
         return 1
 
     calendar_dir = workspace / "calendar"
