@@ -56,6 +56,15 @@ Autres raccourcis à comprendre :
   (`echo 'export FIRECRAWL_API_KEY="fc-..."' >> ~/.zshrc`) avec l'accord
   explicite de l'utilisateur, jamais silencieusement ; vérifier ensuite avec
   un fetch d'une seule cible
+- « Norauto est bloqué » / « site protégé » / « pas de screenshot sur X » /
+  « la clé scrapfly » → certaines enseignes (Norauto, Midas, ATU…) sont derrière
+  DataDome et bloquent tous les moteurs gratuits. Le fetch le détecte et affiche
+  une note « SETUP NEEDED ». Solution par défaut : le Web Unlocker ScrapFly —
+  inscription GRATUITE sans carte (scrapfly.io/register, 1000 crédits), copier
+  la clé, l'ajouter au profil shell avec l'accord de l'utilisateur
+  (`echo 'export SCRAPFLY_API_KEY="..."' >> ~/.zshrc`), puis relancer la veille.
+  Une fois la clé posée, ces sites remontent automatiquement la VRAIE page +
+  screenshot, sans config par cible.
 - « le calendrier » → `calendar/calendar.md` (analyses depuis `calendar/calendar.json`)
 - « exporte vers Google Agenda » → révéler `calendar/calendar.ics` dans le
   gestionnaire de fichiers (`open -R calendar/calendar.ics`) et guider
@@ -117,6 +126,15 @@ def main():
                            "(npx skills add firecrawl/cli@firecrawl) so the agent can crawl; "
                            "without it, protected competitor sites return 403")
     print(f"firecrawl: {firecrawl_state}")
+
+    scrapfly_key = os.environ.get("SCRAPFLY_API_KEY", "").strip()
+    if scrapfly_key:
+        unlocker_state = "OK (SCRAPFLY_API_KEY set — DataDome-class sites auto-unlock with screenshots)"
+    else:
+        unlocker_state = ("not set — the watch works without it; hardened competitors "
+                          "(Norauto/Midas/ATU-class) will print a one-time free signup note "
+                          "(scrapfly.io/register, no card) the first time they're detected")
+    print(f"web-unlocker: {unlocker_state}")
 
     print()
     print("Workspace prêt. Prochaines étapes :")

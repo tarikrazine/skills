@@ -15,10 +15,21 @@ are derived from it.
 | `targets[].country` | string | yes | ISO-ish country code (`"FR"`, `"DE"`, `"ES"`…). Brand+country must be unique — the pair becomes the target slug. |
 | `targets[].url` | string | yes | The exact homepage URL to snapshot, with scheme. Prefer the final URL after redirects (avoid `http://` → `https://` hops and country-picker interstitials). |
 | `targets[].own_brand` | boolean | no | `true` for the user's own sites. Own-brand pages get the same treatment; the flag lets reports and analyses separate "us" vs "them". Default `false`. |
+| `targets[].engine` | string | no | Force this target's fetch engine. The one value that matters: `"web-unlocker"` (alias `"scrapfly"`) pins a **known DataDome/Cloudflare-hardened** competitor (Norauto, Midas, ATU…) straight to the ScrapFly Web Unlocker, skipping the wasted Firecrawl attempt. The unlocker returns the real page **and** a full-page screenshot in one call. Needs `SCRAPFLY_API_KEY` in the environment (free signup, no card, at `scrapfly.io/register`). If you don't set this, hardened sites are still handled — the fetch **auto-escalates** to the unlocker the moment it detects a bot wall — so `engine` is purely an optimization for sites you already know are protected. |
 | `firecrawl` | object | no | Extra options merged into every Firecrawl scrape request (e.g. `{"waitFor": 3000}`). Ignored by the HTTP fallback. |
-| `targets[].firecrawl` | object | no | Per-target Firecrawl options, merged over the global ones. The important one: `{"proxy": "enhanced"}` for sites behind aggressive bot protection (DataDome and similar; Firecrawl formerly called this proxy tier "stealth"). Enhanced costs ~5 credits/scrape vs 1. The fetch script also auto-retries with enhanced when it detects a bot wall in the response, so this option mainly saves the wasted first attempt on known-protected sites. |
-| `targets[].screenshot_engine` | string | no | `"browser-use"` to capture this target's screenshot through Browser Use's hardened-stealth agent (residential proxy + CAPTCHA solving) instead of Firecrawl. Set this ONLY on DataDome-class sites where Firecrawl's enhanced engine returns text but no screenshot (`screenshot_status: unsupported-on-protected-site`). Needs Browser Use set up (the `browser-use` CLI self-authenticates via its skill; `BROWSER_USE_API_KEY` is only a headless fallback) — no key goes in this config. Costs a few cents per capture. Firecrawl still reads the text; this only handles the visual. |
-| `screenshot_proxy_country` | string | no | Residential proxy country code for the Browser Use screenshot engine (default `"fr"`). Match the country of the sites being captured. |
+| `targets[].firecrawl` | object | no | Per-target Firecrawl options, merged over the global ones. `{"proxy": "enhanced"}` bumps Firecrawl's proxy tier for moderately-protected sites (Firecrawl formerly called this "stealth"; ~5 credits/scrape vs 1). Note: enhanced does **not** beat the hardest DataDome configs — for those use `"engine": "web-unlocker"` (above). |
+| `targets[].screenshot_engine` | string | no | Legacy per-target visual override: `"browser-use"` routes only the screenshot through Browser Use's stealth agent. Superseded by `engine: "web-unlocker"`, which is more reliable on DataDome-class sites (Browser Use's CAPTCHA solver does not beat the hardest ones) and returns text + screenshot together. Kept for back-compat. |
+| `screenshot_proxy_country` | string | no | Residential proxy country code for the Browser Use screenshot engine (default `"fr"`). The Web Unlocker instead derives its proxy country from each target's `country` field automatically. |
+
+## Environment (no secrets in this file)
+
+The config never holds API keys. Engines read them from the environment:
+
+| Env var | For | How to get it |
+|---|---|---|
+| `FIRECRAWL_API_KEY` | Firecrawl REST fallback (the `firecrawl` CLI self-authenticates and needs no key) | firecrawl.dev → API Keys |
+| `SCRAPFLY_API_KEY` | **Web Unlocker for DataDome-hardened sites** | **Free, no credit card: https://scrapfly.io/register → 1000 credits.** The fetch prints a setup note the first time a hardened site is detected without this key. |
+| `BROWSER_USE_API_KEY` | Legacy Browser Use screenshot engine (its CLI also self-authenticates) | browser-use.com |
 
 ## Annotated example
 

@@ -82,16 +82,30 @@ competitor-watch/
      (skill page: https://skills.sh/firecrawl/cli/firecrawl). Confirm with the
      user before installing. As a last resort only, the scripts also accept a
      `FIRECRAWL_API_KEY` env var (REST path). Verify with a one-target fetch.
-   - **Browser Use (only if a target has `screenshot_engine: "browser-use"`).**
-     Do NOT set it up otherwise. When needed, install the official Browser Use
-     skill and use its agent self-registration (no human key-paste):
-     `npx skills add browser-use/browser-use@browser-use -g -y`
-     (skill page: https://skills.sh/browser-use/browser-use/browser-use). It
-     runs `browser-use cloud signup`; `browser-use doctor` confirms auth. The
-     scripts also accept `BROWSER_USE_API_KEY` as a REST fallback.
+   - **Web Unlocker for hardened sites (ScrapFly) — set up on demand, by
+     default.** Retailers behind aggressive DataDome/Cloudflare protection
+     (Norauto, Midas, ATU…) block *every* free engine AND every automated
+     browser — the fetch script detects this and, when a `SCRAPFLY_API_KEY` is
+     set, **auto-escalates** that target through ScrapFly's Anti-Scraping
+     Protection, returning the real homepage + a full-page screenshot in one
+     call. No per-target config: it just works. If the key is missing, the fetch
+     prints a one-time setup note; relay it to the user — free signup, **no
+     credit card**, 1000 credits to trial: https://scrapfly.io/register → copy
+     the API key → `export SCRAPFLY_API_KEY="..."` in their shell profile →
+     re-run. Only bring this up when the fetch actually flags a hardened site
+     (`screenshot_status: needs-web-unlocker`); don't preconfigure it.
+   - **Browser Use (legacy alternative for a specific target).** Only if a
+     target pins `screenshot_engine: "browser-use"`. Note that Browser Use's own
+     CAPTCHA-solving agent does NOT beat the hardest DataDome configs (Norauto
+     included) — the Web Unlocker above is the reliable path for those. When
+     genuinely needed, install the official skill (agent self-registration, no
+     key-paste): `npx skills add browser-use/browser-use@browser-use -g -y`
+     (`browser-use doctor` confirms auth; `BROWSER_USE_API_KEY` is a REST
+     fallback).
 
-   In both cases the goal is zero manual API-key management: the CLI holds the
-   credentials, our scripts call the CLI. Keys are only a headless/CI fallback.
+   In all cases the goal is zero manual API-key management where possible: CLIs
+   hold their own credentials. The one key a user may need to paste is the free
+   ScrapFly key, and only when a hardened competitor is actually detected.
 4. The starter config is a copy of `assets/watch.config.example.json`. Ask the
    user which **output language** the reports and dashboard should be written in
    — `fr`, `en`, or `es` — and set `"language"` in the config. This is the
@@ -99,7 +113,7 @@ competitor-watch/
    sites they watch; a French team can watch German and Spanish homepages and
    still get French reports. See `references/config-schema.md`.
 5. Interview the user for the real targets: each competitor brand, each country where it operates, and the exact homepage URL per country — plus the user's own brand sites (set `"own_brand": true`; tracking your own homepage keeps the calendar complete for later self-analysis). Read `references/config-schema.md` for every field and validation rules.
-6. **Screenshot caveat:** each snapshot records a `screenshot_status` in `meta.json`. On standard sites Firecrawl captures a full-page screenshot (`captured`). On sites behind DataDome-class bot protection, the fetch escalates to Firecrawl's enhanced engine to read the content — but that engine **cannot take screenshots** (`unsupported-on-protected-site`). So the text/commercial reading always works on protected competitors; the visual is available only for competitors that don't need the enhanced engine, unless Browser Use is enabled for that target (step 4b of the daily run). Set this expectation rather than promising a screenshot for every target.
+6. **Screenshot & hardened-site behavior:** each snapshot records a `screenshot_status` in `meta.json`. On standard sites Firecrawl captures a full-page screenshot (`captured`). On sites behind DataDome-class bot protection, the free engines return only a challenge wall — the fetch detects this (`suspected_blocked`) and, if a `SCRAPFLY_API_KEY` is set, **auto-escalates that target through the ScrapFly Web Unlocker**, which returns the real homepage **and** a full-page screenshot (`captured`, engine `scrapfly(asp)[auto-escalated]`). If no key is set yet, the status is `needs-web-unlocker` and the fetch prints a one-time free-signup note — relay it. This is the default path for Norauto/Midas/ATU-class competitors; there is no per-target config to enable. Only if a target still can't be captured after the unlocker (rare) does it stay text-only (`unsupported-on-protected-site`). Set expectations accordingly: with the free ScrapFly key, hardened competitors get both text and visual.
 7. Run the first fetch (step 1 of the daily run below). The first day produces snapshots only — there is nothing to diff against yet. Say so rather than inventing a comparison.
 
 ## Daily run
@@ -113,6 +127,8 @@ python3 <skill-dir>/scripts/fetch_homepage.py --config <workspace>/watch.config.
 ```
 
 The script writes `snapshots/<today>/` inside the workspace and prints one status line per target. Per-target failures never abort the batch — they are recorded in that target's `meta.json`. If a target fails repeatedly across days, surface it to the user (the URL may have moved).
+
+Hardened targets (DataDome/Cloudflare) are handled automatically: the fetch escalates them to the ScrapFly Web Unlocker when `SCRAPFLY_API_KEY` is set, or prints a one-time free-signup note (`SETUP NEEDED — hardened sites detected`) when it isn't. If you see that note, relay the free `scrapfly.io/register` instructions to the user, then re-run — nothing else to configure.
 
 ### 2. Diff against the previous snapshot
 
@@ -247,4 +263,4 @@ The daily run is designed to be scheduled. Read `references/scheduling.md` for t
 - **First run / new target**: no previous snapshot exists — the diff reports `new_target`; record a single `other_change` event noting monitoring started, not a fake promo.
 - **Gaps** (skipped weekend, failed day): the diff compares against the most recent available day, so nothing is lost; date ranges in events just get wider. Say which baseline day was used.
 - **Redesigns**: a homepage relaunch produces a massive diff. Don't emit dozens of events — emit one `other_change` ("site redesign") plus only the clearly commercial operations visible on the new page.
-- **Consent walls and bot protection**: if `page.md` is mostly a cookie/consent wall or a "enable JavaScript / ad blocker" message, the fetch engine couldn't see the real page — the fetch script marks these `suspected_blocked` in `meta.json` and in its output. Flag the target as degraded rather than reporting "everything was removed". Retail sites behind DataDome-class protection reject plain HTTP entirely (403) and serve a fake "enable JS" page (HTTP 200) to default Firecrawl scrapes — the fetch script detects this and automatically retries once with Firecrawl's enhanced proxies. For known-protected targets, set `"firecrawl": {"proxy": "enhanced"}` in the config to skip the wasted first attempt (see `references/config-schema.md`).
+- **Consent walls and bot protection**: if `page.md` is mostly a cookie/consent wall or a "enable JavaScript / ad blocker" message, the fetch engine couldn't see the real page — the fetch script marks these `suspected_blocked` in `meta.json` and in its output. Flag the target as degraded rather than reporting "everything was removed". Retail sites behind DataDome-class protection reject plain HTTP (403) and serve a fake "enable JS" page (HTTP 200) to Firecrawl and even to CAPTCHA-solving headless browsers. The fetch handles this in one default path: it detects the wall and **auto-escalates to the ScrapFly Web Unlocker** (`asp=true`), which returns the real page + screenshot. That requires a free `SCRAPFLY_API_KEY` (no card, 1000 credits — `scrapfly.io/register`); without it the fetch flags `needs-web-unlocker` and prints the signup note. This is the reliable route for Norauto/Midas/ATU; the older Firecrawl `"proxy": "enhanced"` retry still runs first for text but does not defeat the hardest DataDome configs.

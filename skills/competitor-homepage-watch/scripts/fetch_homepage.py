@@ -24,11 +24,13 @@ import ssl
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
 FIRECRAWL_ENDPOINT = "https://api.firecrawl.dev/v2/scrape"
+SCRAPFLY_ENDPOINT = "https://api.scrapfly.io/scrape"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -199,12 +201,80 @@ def fetch_via_http(url, timeout):
     return text, raw_html, None, status
 
 
+def fetch_via_scrapfly(url, api_key, timeout, country=None):
+    """Web Unlocker path for DataDome / Cloudflare / PerimeterX–hardened sites.
+
+    A single ScrapFly call with asp=true (Anti-Scraping Protection) + rendered JS
+    returns the real homepage AND a full-page screenshot — the one method that
+    beats the aggressive bot walls Firecrawl and headless browsers can't pass.
+    Returns the same tuple as the other engines: (text, raw_html, shot, status, warning).
+    """
+    params = {
+        "key": api_key,
+        "url": url,
+        "asp": "true",                 # bypass DataDome / Cloudflare / PerimeterX / etc.
+        "render_js": "true",           # execute JS so the real homepage renders
+        # The hard part is the SCREENSHOT: on sites like ATU the DataDome slider
+        # is IP-dependent, so a plain render sometimes captures the challenge, not
+        # the page. Two params make it reliable:
+        #  - retry=true      → ScrapFly re-rolls the proxy/session on a failed ASP
+        #                      solve until it lands on a good one (server-side).
+        #  - wait_for_selector=nav → hold the render until the real homepage's
+        #                      <nav> bar exists; the DataDome challenge page has
+        #                      no <nav> (it DOES have a <footer>, so footer is not
+        #                      a safe discriminator), so a challenged render never
+        #                      "succeeds" and gets retried onto a clean proxy.
+        # (timeout/rendering_wait can't be combined with retry — ScrapFly manages
+        # its own budget when retry is on.)
+        "retry": "true",
+        "wait_for_selector": "nav",
+        "auto_scroll": "true",         # scroll the page so lazy-loaded hero images render
+        "screenshots[main]": "fullpage",  # full-page visual in the same call
+        "screenshot_flags": "block_banners,high_quality",  # hide cookie/consent overlays
+        "format": "raw",               # result.content = rendered HTML
+    }
+    if country:
+        params["country"] = country
+    endpoint = f"{SCRAPFLY_ENDPOINT}?{urllib.parse.urlencode(params)}"
+    try:
+        _, body = http_get(endpoint, timeout)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", "replace")[:300]
+        except Exception:
+            pass
+        raise RuntimeError(f"scrapfly HTTP {exc.code}: {detail}")
+    doc = json.loads(body.decode("utf-8", "replace"))
+    result = doc.get("result") or {}
+    raw_html = result.get("content") or ""
+    status = result.get("status_code")
+    parser = TextExtractor()
+    parser.feed(raw_html)
+    text = html.unescape(parser.get_text())
+    # Screenshot: result.screenshots[<name>].url is a ScrapFly URL that needs the
+    # API key appended to download the image bytes.
+    shot_bytes = None
+    shots = result.get("screenshots") or {}
+    if isinstance(shots, dict) and shots:
+        first = next(iter(shots.values()))
+        shot_url = first.get("url") if isinstance(first, dict) else None
+        if shot_url:
+            sep = "&" if "?" in shot_url else "?"
+            try:
+                _, shot_bytes = http_get(f"{shot_url}{sep}key={api_key}", timeout)
+            except Exception:
+                shot_bytes = None
+    warning = "scrapfly returned a blocked-looking page" if looks_blocked(text) else ""
+    return text, raw_html, shot_bytes, status, warning
+
+
 def looks_blocked(content):
     head = content[:2000].lower()
     return len(content.strip()) < 400 or any(m in head for m in BLOCK_MARKERS)
 
 
-def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
+def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None, scrapfly_key=None):
     slug = f"{slugify(target['brand'])}-{slugify(target['country'])}"
     target_dir = out_dir / slug
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -220,11 +290,25 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
         "has_screenshot": False,
         "screenshot_status": "none",
         "suspected_blocked": False,
+        "needs_unlocker": False,
     }
     fc_cli = shutil.which("firecrawl")
+    # ISO-2 country → ScrapFly proxy geolocation (Norauto FR → country=fr).
+    cc = (target.get("country") or "").strip().lower()
+    country = cc if re.fullmatch(r"[a-z]{2}", cc) else None
+    # A target can pin the Web Unlocker explicitly; otherwise it is reached by
+    # auto-escalation only when a bot wall is detected.
+    force_unlocker = (
+        target.get("engine") in ("web-unlocker", "scrapfly")
+        or target.get("screenshot_engine") in ("web-unlocker", "scrapfly")
+    )
     try:
         warning = ""
-        if not api_key and fc_cli:
+        if force_unlocker and scrapfly_key:
+            # Hardened target pinned to the Web Unlocker: go straight to ScrapFly.
+            meta["engine"] = "scrapfly(asp)"
+            content, raw_html, shot, status, warning = fetch_via_scrapfly(target["url"], scrapfly_key, timeout, country)
+        elif not api_key and fc_cli:
             # Preferred no-key path: the authenticated firecrawl CLI (self-auths,
             # auto-escalates proxy on protected sites).
             meta["engine"] = "firecrawl-cli"
@@ -246,6 +330,30 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
         if not content.strip():
             raise RuntimeError("empty content extracted")
         meta["suspected_blocked"] = looks_blocked(content)
+
+        # DEFAULT anti-bot behavior: if the page is still a wall (DataDome et al.)
+        # and we haven't already used the Web Unlocker, escalate to ScrapFly's ASP
+        # engine automatically. If no key is configured, flag needs_unlocker so the
+        # skill can prompt a free (no-card) ScrapFly signup — exactly like Firecrawl.
+        if meta["suspected_blocked"] and not meta["engine"].startswith("scrapfly"):
+            if scrapfly_key:
+                try:
+                    u_txt, u_html, u_shot, u_status, u_warn = fetch_via_scrapfly(
+                        target["url"], scrapfly_key, timeout, country)
+                    if u_txt.strip() and not looks_blocked(u_txt):
+                        content, raw_html, shot, status, warning = u_txt, u_html, u_shot, u_status, u_warn
+                        meta["engine"] = "scrapfly(asp)[auto-escalated]"
+                        meta["status"] = status
+                        meta["suspected_blocked"] = False
+                    else:
+                        meta["unlocker_note"] = "scrapfly still returned a blocked page"
+                except Exception as exc:  # noqa: BLE001
+                    meta["unlocker_error"] = f"{type(exc).__name__}: {exc}"
+            else:
+                meta["needs_unlocker"] = True
+        if force_unlocker and not scrapfly_key:
+            meta["needs_unlocker"] = True
+
         (target_dir / "page.md").write_text(content, encoding="utf-8")
         if raw_html:
             (target_dir / "page.html").write_text(raw_html, encoding="utf-8")
@@ -255,11 +363,13 @@ def fetch_target(target, out_dir, api_key, timeout, firecrawl_defaults=None):
             meta["screenshot_status"] = "captured"
         elif meta["engine"] == "http":
             meta["screenshot_status"] = "http-no-screenshot"  # plain HTTP fallback can't screenshot
+        elif meta["needs_unlocker"]:
+            # Hardened site, no Web Unlocker key yet: text may be partial, no visual.
+            # The skill surfaces a one-time free ScrapFly setup prompt.
+            meta["screenshot_status"] = "needs-web-unlocker"
         elif meta["suspected_blocked"] or "screenshot" in (warning or "").lower():
-            # Bot-protected site: the enhanced/stealth engine reads text but the
-            # engine can't (or was blocked from) screenshotting. Content may be
-            # captured; the visual isn't. Enable browser-use for this target to
-            # get the visual. Not a failure.
+            # Bot-protected site the unlocker also couldn't crack this run. Content
+            # may be partial; the visual isn't captured. Not a failure.
             meta["screenshot_status"] = "unsupported-on-protected-site"
             if warning:
                 meta["firecrawl_warning"] = warning
@@ -306,33 +416,60 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     api_key = os.environ.get("FIRECRAWL_API_KEY", "").strip() or None
+    scrapfly_key = os.environ.get("SCRAPFLY_API_KEY", "").strip() or None
     if api_key:
         engine_label = "firecrawl (REST, API key)"
     elif shutil.which("firecrawl"):
         engine_label = "firecrawl CLI (self-authenticated; screenshots on)"
     else:
         engine_label = "http-fallback (no firecrawl CLI or key; no screenshots, protected sites will 403)"
+    unlocker_label = ("ScrapFly Web Unlocker ON (hardened sites like DataDome auto-escalate, +screenshot)"
+                      if scrapfly_key else "Web Unlocker OFF (hardened sites will prompt a free ScrapFly setup)")
     print(f"engine: {engine_label}")
+    print(f"unlocker: {unlocker_label}")
     print(f"snapshot dir: {out_dir}")
 
     successes = 0
+    needs_unlocker = []
     for target in targets:
         slug = f"{slugify(target['brand'])}-{slugify(target['country'])}"
         if args.only and args.only not in slug:
             continue
-        slug, ok, meta = fetch_target(target, out_dir, api_key, args.timeout, config.get("firecrawl"))
+        slug, ok, meta = fetch_target(
+            target, out_dir, api_key, args.timeout, config.get("firecrawl"), scrapfly_key)
         if ok:
             successes += 1
             if meta["has_screenshot"]:
                 shot = " +screenshot"
+            elif meta["screenshot_status"] == "needs-web-unlocker":
+                shot = " [needs Web Unlocker — see setup note below]"
             elif meta["screenshot_status"] == "unsupported-on-protected-site":
-                shot = " [no screenshot — bot-protected site, Firecrawl enhanced engine can't capture]"
+                shot = " [no screenshot — hardened site, unlocker couldn't capture this run]"
             else:
                 shot = ""
             blocked = " [SUSPECTED BLOCKED — content looks like a bot wall]" if meta["suspected_blocked"] else ""
+            if meta.get("needs_unlocker"):
+                needs_unlocker.append(slug)
             print(f"OK   {slug} ({meta['engine']}{shot}){blocked}")
         else:
             print(f"FAIL {slug}: {meta['error']}")
+
+    if needs_unlocker and not scrapfly_key:
+        print()
+        print("─" * 68)
+        print("SETUP NEEDED — hardened (DataDome-class) sites detected:")
+        print(f"  {', '.join(needs_unlocker)}")
+        print("These competitors block every free engine. To capture their real")
+        print("homepage + screenshot, the skill uses ScrapFly's Web Unlocker:")
+        print("  1. Sign up FREE (no credit card): https://scrapfly.io/register")
+        print("     → 1000 free API credits, enough to trial the watch.")
+        print("  2. Copy your API key from the ScrapFly dashboard.")
+        print("  3. Add it to your shell profile, then re-run the watch:")
+        print("       echo 'export SCRAPFLY_API_KEY=\"...\"' >> ~/.zshrc && source ~/.zshrc")
+        print("Once set, these sites auto-escalate through the unlocker — no per-")
+        print("target config, it just works.")
+        print("─" * 68)
+
     if successes == 0:
         print("ERROR: all targets failed", file=sys.stderr)
         return 2
