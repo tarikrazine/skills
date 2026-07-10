@@ -13,6 +13,7 @@ Python 3.8+, standard library only.
 """
 
 import argparse
+import base64
 import html
 import json
 import sys
@@ -120,14 +121,30 @@ def event_card(ev, workspace, reports_dir, S):
     if shot:
         shot_abs = (workspace / shot).resolve()
         if shot_abs.exists():
-            try:
-                src = "../" + shot_abs.relative_to(reports_dir.parent).as_posix()
-            except ValueError:
-                src = shot_abs.as_uri()
-            if shot_abs.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-                img = f'<img src="{src}" alt="capture">'
+            suffix = shot_abs.suffix.lower()
+            if suffix in (".png", ".jpg", ".jpeg", ".webp"):
+                # Inline the capture as a data URI so the report is fully
+                # self-contained — it survives being emailed, moved, or printed
+                # to PDF with no broken image links. Files written as .png may
+                # actually hold JPEG bytes (the Web Unlocker returns JPG), so
+                # sniff the magic bytes rather than trusting the extension.
+                raw = shot_abs.read_bytes()
+                if raw[:3] == b"\xff\xd8\xff":
+                    mime = "image/jpeg"
+                elif raw[:8] == b"\x89PNG\r\n\x1a\n":
+                    mime = "image/png"
+                elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+                    mime = "image/webp"
+                else:
+                    mime = {".png": "image/png", ".webp": "image/webp"}.get(suffix, "image/jpeg")
+                b64 = base64.b64encode(raw).decode("ascii")
+                img = f'<img src="data:{mime};base64,{b64}" alt="capture">'
             else:
-                # e.g. a full-page PDF from the stealth capture — link it, don't inline
+                # e.g. a full-page PDF from a stealth capture — link it, don't inline
+                try:
+                    src = "../" + shot_abs.relative_to(reports_dir.parent).as_posix()
+                except ValueError:
+                    src = shot_abs.as_uri()
                 img = f'<a class="visual-link" href="{src}">📄 Voir le visuel ({shot_abs.suffix.lstrip(".").upper()})</a>'
     return f"""<div class="card" style="--stripe:{stripe}">
 <span class="tag" style="color:{ink};background:{bg}">{label}</span>
