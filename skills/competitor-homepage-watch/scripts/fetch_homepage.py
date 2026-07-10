@@ -230,7 +230,12 @@ def fetch_via_scrapfly(url, api_key, timeout, country=None):
         "wait_for_selector": "nav",
         "auto_scroll": "true",         # scroll the page so lazy-loaded hero images render
         "screenshots[main]": "fullpage",  # full-page visual in the same call
-        "screenshot_flags": "block_banners,high_quality",  # hide cookie/consent overlays
+        # load_images forces every (lazy) image to finish loading BEFORE capture —
+        # without it, hero/offer images render as grey placeholders. block_banners
+        # hides cookie overlays. NOTE: do NOT add high_quality — it doubles the
+        # pixel density, and on very tall homepages (Norauto ≈ 7300px → ~14600px)
+        # that blows past ScrapFly's screenshot size limit and returns HTTP 422.
+        "screenshot_flags": "load_images,block_banners",
         "format": "raw",               # result.content = rendered HTML
     }
     if country:
