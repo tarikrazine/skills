@@ -84,8 +84,14 @@ h2::before { content:""; width:7px; height:7px; border-radius:2px;
 blockquote { font-family:var(--serif); font-style:italic; font-size:14.5px;
   color:var(--muted); border-left:2px solid var(--line); padding:2px 0 2px 14px;
   margin:12px 0; }
-.card img { max-width:100%; border:1px solid var(--line); border-radius:6px;
-  margin-top:12px; display:block; }
+/* Screenshot is EVIDENCE, not the story: cap it to a thumbnail of the top of
+   the page so the analysis text leads. A caption marks it as a capture. */
+.shot { margin-top:12px; }
+.shot figcaption { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:5px; }
+.card img { max-width:100%; max-height:300px; object-fit:cover;
+  object-position:top center; border:1px solid var(--line); border-radius:6px;
+  display:block; }
 
 .panel { background:var(--card); border:1px solid var(--line);
   border-radius:10px; padding:18px 20px; overflow-x:auto; }
@@ -138,7 +144,10 @@ def event_card(ev, workspace, reports_dir, S):
                 else:
                     mime = {".png": "image/png", ".webp": "image/webp"}.get(suffix, "image/jpeg")
                 b64 = base64.b64encode(raw).decode("ascii")
-                img = f'<img src="data:{mime};base64,{b64}" alt="capture">'
+                cap = S.get("capture", "Capture")
+                img = (f'<figure class="shot"><figcaption>{esc(cap)} — '
+                       f'{esc(ev["brand"])} {esc(ev["country"])}</figcaption>'
+                       f'<img src="data:{mime};base64,{b64}" alt="capture"></figure>')
             else:
                 # e.g. a full-page PDF from a stealth capture — link it, don't inline
                 try:
