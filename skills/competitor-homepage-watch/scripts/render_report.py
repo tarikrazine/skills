@@ -91,7 +91,38 @@ blockquote { font-family:var(--serif); font-style:italic; font-size:14.5px;
   color:var(--faint); margin-bottom:5px; }
 .card img { max-width:100%; max-height:300px; object-fit:cover;
   object-position:top center; border:1px solid var(--line); border-radius:6px;
-  display:block; }
+  display:block; cursor:zoom-in; transition:filter .12s; }
+.card img:hover { filter:brightness(.94); }
+.shot figcaption::after { content:" 🔍"; opacity:.5; }
+
+/* Analyst reading: a short interpretation of what the operation means. */
+.reading { background:#f0f4f2; border-radius:8px; padding:11px 14px; margin-top:12px;
+  font-size:13.5px; color:#243330; }
+.reading .rlabel { display:inline-block; font-size:9.5px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--petrol);
+  margin-right:8px; vertical-align:1px; }
+
+/* Market-read synthesis panel (executive summary). */
+.synthesis { background:linear-gradient(180deg,#fff,#f7faf8); border:1px solid var(--line);
+  border-left:3px solid var(--petrol); border-radius:12px; padding:18px 22px;
+  margin:0 0 26px; }
+.synthesis .cap { font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--petrol); font-weight:600; margin-bottom:8px; }
+.synthesis h2.stitle { font-family:var(--serif); font-size:22px; font-weight:600;
+  border:0; padding:0; margin:0 0 8px; text-transform:none; letter-spacing:normal;
+  color:var(--ink); display:block; }
+.synthesis h2.stitle::before { display:none; }
+.synthesis p { font-size:14.5px; color:#28352f; margin-bottom:8px; }
+.synthesis p:last-child { margin-bottom:0; }
+
+/* Click-to-zoom lightbox: hidden until an image is clicked. */
+.lightbox { position:fixed; inset:0; background:rgba(9,14,13,.93); z-index:999;
+  display:none; overflow:auto; cursor:zoom-out; padding:24px; }
+.lightbox.open { display:block; }
+.lightbox img { display:block; max-width:1180px; width:100%; margin:0 auto;
+  border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+.lightbox .close { position:fixed; top:16px; right:22px; color:#fff; font-size:30px;
+  font-family:var(--sans); line-height:1; opacity:.85; cursor:pointer; }
 
 .panel { background:var(--card); border:1px solid var(--line);
   border-radius:10px; padding:18px 20px; overflow-x:auto; }
@@ -107,6 +138,8 @@ footer { font-family:var(--mono); text-align:center; color:var(--faint);
   body { background:#fff; padding:0; }
   .card,.panel,.kpis { border-color:#ccc; }
   h2 { break-after:avoid; }
+  .lightbox { display:none !important; }
+  .card img { max-height:none; object-fit:contain; }
 }
 """
 
@@ -122,6 +155,8 @@ def event_card(ev, workspace, reports_dir, S):
     end = (ev.get("dates_seen") or {}).get("announced_end")
     end_html = f'<div class="brand">{esc(S["announced_end"].format(end=end))}</div>' if end else ""
     quote = f"<blockquote>« {esc(ev['evidence'])} »</blockquote>" if ev.get("evidence") else ""
+    reading = (f'<div class="reading"><span class="rlabel">{esc(S.get("reading_label", "Analyse"))}</span>'
+               f'{esc(ev["analysis"])}</div>') if ev.get("analysis") else ""
     img = ""
     shot = ev.get("screenshot")
     if shot:
@@ -160,7 +195,7 @@ def event_card(ev, workspace, reports_dir, S):
 <h3>{esc(ev.get('title', '(sans titre)'))}{disc}</h3>
 <div class="brand">{esc(ev['brand'])} &middot; {esc(ev['country'])}</div>
 {end_html}<p>{esc(ev.get('summary', ''))}</p>
-{quote}{img}
+{quote}{reading}{img}
 </div>"""
 
 
@@ -203,7 +238,14 @@ def main():
         print(f"ERROR: no events file found ({events_path or events_dir})", file=sys.stderr)
         return 1
     date = events_path.stem
-    events = json.loads(events_path.read_text(encoding="utf-8"))
+    events_raw = json.loads(events_path.read_text(encoding="utf-8"))
+    # events file is either a bare list of events, or an object carrying an
+    # analyst synthesis alongside them: {"synthesis": "...", "events": [...]}.
+    if isinstance(events_raw, dict):
+        synthesis = (events_raw.get("synthesis") or "").strip()
+        events = events_raw.get("events") or []
+    else:
+        synthesis, events = "", events_raw
 
     config_path = workspace / "watch.config.json"
     config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
@@ -241,6 +283,12 @@ def main():
     if issues:
         issues_html = f'<h2>{esc(S["sec_issues"])}</h2><div class="issues">' + "<br>".join(issues) + "</div>"
 
+    synthesis_html = ""
+    if synthesis:
+        paras = "".join(f"<p>{esc(p.strip())}</p>" for p in synthesis.split("\n") if p.strip())
+        synthesis_html = (f'<div class="synthesis"><div class="cap">{esc(S["synthesis_cap"])}</div>'
+                          f'<h2 class="stitle">{esc(S["synthesis_title"])}</h2>{paras}</div>')
+
     page = f"""<!DOCTYPE html>
 <html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -257,12 +305,28 @@ def main():
 <div class="kpi"><b>{len(by_type['promo_update'])}</b><span>{esc(S['kpi_modified'])}</span></div>
 <div class="kpi"><b>{ongoing}</b><span>{esc(S['kpi_market'])}</span></div>
 </div>
+{synthesis_html}
 {''.join(sections)}
 {issues_html}
 <h2>{esc(S['chart_title'])}</h2>
 <div class="panel"><div class="cap">{esc(S['chart_cap'])}</div>{brand_chart(calendar, S)}</div>
 <footer>{esc(S['footer'])}</footer>
-</div></body></html>"""
+</div>
+<div class="lightbox" id="lb" aria-hidden="true"><span class="close">&times;</span><img alt="capture agrandie"></div>
+<script>
+(function(){{
+  var lb=document.getElementById('lb'), full=lb.querySelector('img');
+  document.querySelectorAll('.shot img').forEach(function(im){{
+    im.addEventListener('click',function(){{ full.src=im.src; lb.classList.add('open');
+      lb.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }});
+  }});
+  function close(){{ lb.classList.remove('open'); lb.setAttribute('aria-hidden','true');
+    full.src=''; document.body.style.overflow=''; }}
+  lb.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){{ if(e.key==='Escape') close(); }});
+}})();
+</script>
+</body></html>"""
 
     out = reports_dir / f"{date}.html"
     out.write_text(page, encoding="utf-8")

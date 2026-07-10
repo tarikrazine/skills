@@ -19,6 +19,11 @@ STRINGS = {
     "fr": {
         # report
         "report_eyebrow": "Veille concurrentielle · Rapport quotidien",
+        "capture": "Capture",
+        "zoom_hint": "Cliquer une capture pour l'agrandir",
+        "synthesis_title": "Lecture du marché",
+        "synthesis_cap": "Synthèse de l'analyste",
+        "reading_label": "Analyse",
         "report_title": "Ce qui a bougé le {date}",
         "report_meta": "Comparaison jour à jour{baseline}",
         "baseline": " · base {b}",
@@ -50,6 +55,11 @@ STRINGS = {
     },
     "en": {
         "report_eyebrow": "Competitive intelligence · Daily report",
+        "capture": "Screenshot",
+        "zoom_hint": "Click a screenshot to enlarge it",
+        "synthesis_title": "Market read",
+        "synthesis_cap": "Analyst synthesis",
+        "reading_label": "Analysis",
         "report_title": "What changed on {date}",
         "report_meta": "Day-over-day comparison{baseline}",
         "baseline": " · vs {b}",
@@ -80,6 +90,11 @@ STRINGS = {
     },
     "es": {
         "report_eyebrow": "Vigilancia competitiva · Informe diario",
+        "capture": "Captura",
+        "zoom_hint": "Haz clic en una captura para ampliarla",
+        "synthesis_title": "Lectura del mercado",
+        "synthesis_cap": "Síntesis del analista",
+        "reading_label": "Análisis",
         "report_title": "Lo que cambió el {date}",
         "report_meta": "Comparación día a día{baseline}",
         "baseline": " · vs {b}",

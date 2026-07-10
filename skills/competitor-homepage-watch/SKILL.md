@@ -171,6 +171,16 @@ Read the diff JSON. For each changed target, decide what each added/removed/chan
 
 `event_type` is one of `promo_start`, `promo_end`, `promo_update`, `other_change`. Only genuine commercial signals become events — layout tweaks and noise are dropped (mention them in one line of the report if notable).
 
+**Add analysis, not just data.** The value of the watch is interpretation, not screenshots. So:
+- Give each event an `"analysis"` field: 1–2 sentences on what the operation *means* — the pricing logic (loss-leader vs margin-safe cashback), who it targets, how it compares to rivals, what to watch (e.g. an end date that will open a promo gap). The report renders this as a highlighted "reading" under each card.
+- Wrap the day's events in an object with a top-level `"synthesis"` (3–5 sentences, newline-separated): the cross-brand market read — the dominant theme (e.g. a heat-wave driving air-con offers across brands), the strategic tension, and what to monitor next. It renders as a "Market read" panel at the top of the report.
+
+```json
+{ "synthesis": "The market is pivoting to summer service...\nOn tyres, two logics coexist...", "events": [ { "...": "...", "analysis": "Front-footed price play; the €9.90 fit undercuts atelier norms..." } ] }
+```
+
+A bare list of events (no synthesis) is still accepted for back-compat, but prefer the richer object — a screenshot without a reading is not competitive intelligence.
+
 ### 4. Write the daily alert report
 
 Fill `assets/report-template.md` into `reports/<today>.md`: new operations first, then ended ones, then modifications, grouped by brand and country, each with its evidence quote and screenshot reference. Present the report content in the conversation — this IS the alert.
